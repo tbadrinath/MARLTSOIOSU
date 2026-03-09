@@ -192,37 +192,55 @@ function AboutPanel() {
           </h3>
           <p style={styles.aboutText}>
             IUTMS applies <strong>Multi-Agent Reinforcement Learning (MARL)</strong>{" "}
-            to adaptive traffic signal control. Each intersection is controlled by
-            an independent <strong>Deep Q-Network (DQN)</strong> agent that learns
-            to minimise congestion, waiting time, and CO₂ emissions while maximising
-            vehicle throughput.
+            to adaptive traffic signal control. Each intersection runs an independent
+            RL agent — choose between <strong>DQN</strong> (ε-greedy, experience
+            replay, target network) and <strong>PPO</strong> (clipped surrogate
+            objective, GAE, actor-critic). Two reward modes are available:{" "}
+            <em>composite</em> (throughput + queue + wait + spillback) and{" "}
+            <em>pressure</em> (inspired by sumo-rl).
           </p>
           <div style={styles.aboutGrid}>
             <div style={styles.aboutCard}>
               <div style={styles.aboutCardTitle}>Observation Space</div>
               <div style={styles.aboutCardText}>
                 Normalised vehicle count + lane occupancy per incoming lane, plus a
-                downstream spillback flag per outgoing lane.
+                downstream spillback flag. Optional: current phase index &amp;
+                time-in-phase features (<code>--phase-obs</code>).
               </div>
             </div>
             <div style={styles.aboutCard}>
-              <div style={styles.aboutCardTitle}>Reward Function</div>
-              <div style={{ ...styles.aboutCardText, fontFamily: "monospace", fontSize: 12 }}>
-                R = α·Throughput − β·Queue − γ·WaitTime − δ·Spillback
+              <div style={styles.aboutCardTitle}>DQN Agent</div>
+              <div style={{ ...styles.aboutCardText, fontFamily: "monospace", fontSize: 11 }}>
+                FC(64)→ReLU→FC(32)→ReLU→Q(a){"\n"}
+                Replay 10k · target update 100
               </div>
             </div>
             <div style={styles.aboutCard}>
-              <div style={styles.aboutCardTitle}>Agent Architecture</div>
+              <div style={styles.aboutCardTitle}>PPO Agent</div>
+              <div style={{ ...styles.aboutCardText, fontFamily: "monospace", fontSize: 11 }}>
+                Shared FC(128→64)→Actor+Critic{"\n"}
+                GAE λ=0.95 · clip ε=0.2 · n=512
+              </div>
+            </div>
+            <div style={styles.aboutCard}>
+              <div style={styles.aboutCardTitle}>Reward Modes</div>
+              <div style={{ ...styles.aboutCardText, fontFamily: "monospace", fontSize: 11 }}>
+                composite: α·T−β·Q−γ·W−δ·S{"\n"}
+                pressure:  −|in−out|/lanes
+              </div>
+            </div>
+            <div style={styles.aboutCard}>
+              <div style={styles.aboutCardTitle}>OSM Map Import</div>
               <div style={styles.aboutCardText}>
-                FC(64) → ReLU → FC(32) → ReLU → Q-values.
-                Experience replay (10k), target network, ε-greedy decay.
+                Search any city, download OSM data, auto-convert to SUMO network
+                + routes, and run the simulation on real street layouts.
               </div>
             </div>
             <div style={styles.aboutCard}>
               <div style={styles.aboutCardTitle}>Simulator</div>
               <div style={styles.aboutCardText}>
-                SUMO 1.15 via TraCI. 3,600-step episodes on a synthetic grid network.
-                Python backend streams metrics to this dashboard over Socket.io.
+                SUMO 1.15 via TraCI. 3,600-step episodes. Python backend streams
+                metrics to this dashboard over Socket.io.
               </div>
             </div>
           </div>
@@ -234,32 +252,117 @@ function AboutPanel() {
 
 /** Collapsible panel showing default training hyper-parameters. */
 function ConfigPanel() {
-  const [open, setOpen] = useState(false);
-  const params = [
-    ["Learning rate",     "0.001"],
-    ["Discount (γ)",      "0.99"],
-    ["ε start / min",     "1.0 → 0.05"],
-    ["ε decay",           "0.995"],
-    ["Batch size",        "64"],
-    ["Replay buffer",     "10 000"],
-    ["Target update",     "every 100 steps"],
-    ["Phase duration",    "10 sim steps"],
-    ["Max steps / ep.",   "3,600"],
-    ["Reward α/β/γ/δ",   "0.4 / 0.3 / 0.2 / 0.5"],
+  const [open,    setOpen]    = useState(false);
+  const [algo,    setAlgo]    = useState("dqn");
+  const [reward,  setReward]  = useState("composite");
+
+  const dqnParams = [
+    ["Algorithm",      "DQN (ε-greedy)"],
+    ["Learning rate",  "0.001"],
+    ["Discount (γ)",   "0.99"],
+    ["ε start / min",  "1.0 → 0.05"],
+    ["ε decay",        "0.995"],
+    ["Batch size",     "64"],
+    ["Replay buffer",  "10 000"],
+    ["Target update",  "every 100 steps"],
   ];
+  const ppoParams = [
+    ["Algorithm",         "PPO (actor-critic)"],
+    ["Learning rate",     "0.0003"],
+    ["Discount (γ)",      "0.99"],
+    ["GAE λ",             "0.95"],
+    ["Clip ε",            "0.2"],
+    ["Value loss coef",   "0.5"],
+    ["Entropy coef",      "0.01"],
+    ["Rollout steps",     "512"],
+    ["Epochs / update",   "10"],
+    ["Batch size",        "64"],
+  ];
+  const compositeReward = [
+    ["Reward mode",    "composite"],
+    ["α (throughput)", "0.4"],
+    ["β (queue)",      "0.3"],
+    ["γ (wait time)",  "0.2"],
+    ["δ (spillback)",  "0.5"],
+  ];
+  const pressureReward = [
+    ["Reward mode",  "pressure (sumo-rl)"],
+    ["Formula",      "−|in_queue − out_queue| / lanes"],
+  ];
+  const sharedParams = [
+    ["Phase duration",  "10 sim steps"],
+    ["Max steps / ep.", "3,600"],
+    ["Phase obs",       "optional (+2 features)"],
+  ];
+
+  const algoRows   = algo   === "ppo"       ? ppoParams       : dqnParams;
+  const rewardRows = reward === "pressure"  ? pressureReward  : compositeReward;
+
+  const cliCommand = [
+    "python -m simulation.trainer",
+    `  --algo ${algo}`,
+    `  --reward ${reward}`,
+    algo === "ppo" ? "  --ppo-n-steps 512" : "  --epsilon-start 1.0",
+    reward === "pressure" ? "" : "  --alpha 0.4 --beta 0.3",
+    "  --episodes 200 --max-steps 3600",
+  ].filter(Boolean).join(" \\\n");
+
   return (
     <div style={styles.aboutWrapper}>
       <button style={styles.toggleBtn} onClick={() => setOpen(o => !o)}>
         {open ? "▲ Hide" : "▼ Training configuration"}
       </button>
       {open && (
-        <div style={styles.configBody}>
-          {params.map(([k, v]) => (
-            <div key={k} style={styles.configRow}>
-              <span style={styles.configKey}>{k}</span>
-              <span style={styles.configVal}>{v}</span>
+        <div style={{ padding: "0 16px 16px" }}>
+          {/* ── Algorithm & reward selectors ── */}
+          <div style={styles.cfgSelectorRow}>
+            <div style={styles.cfgSelectorGroup}>
+              <span style={styles.cfgSelectorLabel}>Algorithm</span>
+              {["dqn", "ppo"].map(a => (
+                <button
+                  key={a}
+                  style={{
+                    ...styles.cfgToggleBtn,
+                    ...(algo === a ? styles.cfgToggleBtnActive : {}),
+                  }}
+                  onClick={() => setAlgo(a)}
+                >
+                  {a.toUpperCase()}
+                </button>
+              ))}
             </div>
-          ))}
+            <div style={styles.cfgSelectorGroup}>
+              <span style={styles.cfgSelectorLabel}>Reward</span>
+              {["composite", "pressure"].map(r => (
+                <button
+                  key={r}
+                  style={{
+                    ...styles.cfgToggleBtn,
+                    ...(reward === r ? styles.cfgToggleBtnActive : {}),
+                  }}
+                  onClick={() => setReward(r)}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Param table ── */}
+          <div style={styles.configBody}>
+            {[...algoRows, ...rewardRows, ...sharedParams].map(([k, v]) => (
+              <div key={k} style={styles.configRow}>
+                <span style={styles.configKey}>{k}</span>
+                <span style={styles.configVal}>{v}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* ── CLI command preview ── */}
+          <div style={styles.cfgCliBox}>
+            <div style={styles.cfgCliLabel}>CLI command</div>
+            <pre style={styles.cfgCliPre}>{cliCommand}</pre>
+          </div>
         </div>
       )}
     </div>
@@ -964,6 +1067,62 @@ const styles = {
     color: "#c0c0d0",
     fontFamily: "monospace",
     fontWeight: 600,
+  },
+  // ── ConfigPanel algorithm/reward selector ──────────────────────────────
+  cfgSelectorRow: {
+    display: "flex",
+    gap: 16,
+    marginBottom: 12,
+    flexWrap: "wrap",
+  },
+  cfgSelectorGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+  },
+  cfgSelectorLabel: {
+    fontSize: 11,
+    color: "#777",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    marginRight: 4,
+  },
+  cfgToggleBtn: {
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    color: "#777",
+    borderRadius: 5,
+    padding: "3px 10px",
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+    fontFamily: "monospace",
+  },
+  cfgToggleBtnActive: {
+    background: "rgba(0,229,255,0.12)",
+    border: "1px solid rgba(0,229,255,0.4)",
+    color: "#00e5ff",
+  },
+  cfgCliBox: {
+    marginTop: 12,
+    background: "rgba(0,0,0,0.3)",
+    borderRadius: 6,
+    padding: "8px 12px",
+  },
+  cfgCliLabel: {
+    fontSize: 10,
+    color: "#555",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    marginBottom: 4,
+  },
+  cfgCliPre: {
+    margin: 0,
+    fontFamily: "monospace",
+    fontSize: 11,
+    color: "#69ff47",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-all",
   },
   footer: {
     textAlign: "center",

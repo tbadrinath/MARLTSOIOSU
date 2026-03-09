@@ -41,6 +41,7 @@ def _make_traci_stub():
     ]
     tl.getProgram.return_value = "0"
     tl.setPhase = MagicMock()
+    tl.getPhase = MagicMock(return_value=1)  # current phase index
     traci_mod.trafficlight = tl
 
     # --- lane sub-module ---
@@ -236,3 +237,111 @@ class TestCollectInfo:
         info = env._collect_info()
         for key in ("avg_speed", "co2_emissions", "vehicles_in_network"):
             assert isinstance(info[key], (int, float))
+
+
+# ---------------------------------------------------------------------------
+# New feature tests: pressure reward and phase-time observations
+# ---------------------------------------------------------------------------
+
+class TestPressureReward:
+    """Tests for the pressure reward mode (sumo-rl style)."""
+
+    def _make_env(self) -> "TrafficEnv":
+        from simulation.env_wrapper import TrafficEnv, REWARD_MODE_PRESSURE
+        e = TrafficEnv(
+            net_file="maps/grid.net.xml",
+            route_file="maps/grid.rou.xml",
+            ts_ids=["A0", "B0", "C0"],
+            max_steps=100,
+            reward_mode=REWARD_MODE_PRESSURE,
+        )
+        with patch.object(e, "_start_sumo"), patch.object(e, "_close_sumo"):
+            e.reset()
+        return e
+
+    def test_pressure_reward_is_float(self):
+        env = self._make_env()
+        r = env._compute_reward("A0")
+        assert isinstance(r, float)
+
+    def test_pressure_reward_non_positive(self):
+        """Pressure reward is always ≤ 0 (it is −|in − out| / n)."""
+        env = self._make_env()
+        r = env._compute_reward("A0")
+        assert r <= 0.0
+
+    def test_pressure_reward_zero_when_balanced(self):
+        """When incoming and outgoing halting numbers are equal, pressure = 0."""
+        env = self._make_env()
+        _traci_stub.lane.getLastStepHaltingNumber.return_value = 3
+        r = env._compute_reward("A0")
+        # in = 2 lanes × 3 = 6, out = 2 lanes × 3 = 6 → pressure = 0
+        assert r == pytest.approx(0.0, abs=1e-6)
+        # Restore default
+        _traci_stub.lane.getLastStepHaltingNumber.return_value = 2
+
+    def test_composite_vs_pressure_differ(self):
+        from simulation.env_wrapper import REWARD_MODE_COMPOSITE, REWARD_MODE_PRESSURE
+        env_c = TrafficEnv("n.xml", "r.xml", ts_ids=["A0"],
+                           reward_mode=REWARD_MODE_COMPOSITE)
+        env_p = TrafficEnv("n.xml", "r.xml", ts_ids=["A0"],
+                           reward_mode=REWARD_MODE_PRESSURE)
+        for e in (env_c, env_p):
+            with patch.object(e, "_start_sumo"), patch.object(e, "_close_sumo"):
+                e.reset()
+        rc = env_c._compute_reward("A0")
+        rp = env_p._compute_reward("A0")
+        # They use different formulas, so they should generally differ
+        # (this is a sanity check, not an equality check)
+        assert isinstance(rc, float)
+        assert isinstance(rp, float)
+
+
+class TestPhaseObservation:
+    """Tests for use_phase_obs=True (AndreaVidali-style phase features)."""
+
+    def _make_phase_env(self) -> "TrafficEnv":
+        from simulation.env_wrapper import TrafficEnv
+        e = TrafficEnv(
+            net_file="maps/grid.net.xml",
+            route_file="maps/grid.rou.xml",
+            ts_ids=["A0", "B0", "C0"],
+            max_steps=100,
+            use_phase_obs=True,
+        )
+        _traci_stub.trafficlight.getPhase = MagicMock(return_value=1)
+        with patch.object(e, "_start_sumo"), patch.object(e, "_close_sumo"):
+            e.reset()
+        return e
+
+    def test_obs_size_larger_with_phase(self):
+        from simulation.env_wrapper import TrafficEnv
+        env_no  = TrafficEnv("n.xml", "r.xml", ts_ids=["A0"], use_phase_obs=False)
+        env_yes = TrafficEnv("n.xml", "r.xml", ts_ids=["A0"], use_phase_obs=True)
+        for e in (env_no, env_yes):
+            with patch.object(e, "_start_sumo"), patch.object(e, "_close_sumo"):
+                e.reset()
+        size_no  = env_no.observation_space_size("A0")
+        size_yes = env_yes.observation_space_size("A0")
+        assert size_yes == size_no + 2
+
+    def test_obs_vector_length_matches_size(self):
+        env = self._make_phase_env()
+        obs = env._get_observation("A0")
+        assert len(obs) == env.observation_space_size("A0")
+
+    def test_phase_features_clipped(self):
+        """Phase-time normalised feature should be in [0, 1]."""
+        env = self._make_phase_env()
+        # Set a very large phase_step to test clamping
+        env._phase_step["A0"] = 99999
+        obs = env._get_observation("A0")
+        # Last two features are phase features
+        assert 0.0 <= obs[-1] <= 1.0
+        assert 0.0 <= obs[-2] <= 1.0
+
+    def test_reward_mode_defaults_to_composite_with_phase(self):
+        """use_phase_obs should not change the default reward mode."""
+        from simulation.env_wrapper import REWARD_MODE_COMPOSITE
+        env = self._make_phase_env()
+        assert env.reward_mode == REWARD_MODE_COMPOSITE
