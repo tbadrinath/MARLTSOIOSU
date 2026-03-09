@@ -52,8 +52,12 @@ logger = logging.getLogger(__name__)
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 OVERPASS_URL  = "https://overpass-api.de/api/interpreter"
 
-# User-Agent required by Nominatim usage policy
-_USER_AGENT = "IUTMS-TrafficSim/1.0 (https://github.com/tbadrinath/MARLTSOIOSU)"
+# User-Agent required by Nominatim usage policy.  Can be overridden via the
+# IUTMS_USER_AGENT environment variable for custom deployments.
+_USER_AGENT = os.environ.get(
+    "IUTMS_USER_AGENT",
+    "IUTMS-TrafficSim/1.0 (https://github.com/tbadrinath/MARLTSOIOSU)",
+)
 
 # Margin (in degrees) added around a place's bounding box
 BBOX_MARGIN = 0.005

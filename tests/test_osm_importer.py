@@ -151,9 +151,8 @@ class TestSearchLocation:
 
         with patch("simulation.osm_importer._get", return_value=mock_resp) as mock_get:
             search_location("test", limit=99)
-            _, kwargs_or_args = mock_get.call_args[0], mock_get.call_args
             # The 'limit' in params should not exceed 10
-            params = mock_get.call_args[0][1]
+            params = mock_get.call_args.args[1]
             assert int(params["limit"]) <= 10
 
 

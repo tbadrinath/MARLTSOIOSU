@@ -179,6 +179,41 @@ app.get("/api/status", (_req, res) => {
 // ---------------------------------------------------------------------------
 
 /**
+ * Simple in-memory rate limiter for the OSM import endpoint.
+ *
+ * Each unique IP may trigger at most OSM_RATE_LIMIT requests within
+ * OSM_RATE_WINDOW_MS milliseconds.  This prevents abuse of the endpoint that
+ * spawns a child process and makes external HTTP calls.
+ */
+const OSM_RATE_LIMIT      = parseInt(process.env.OSM_RATE_LIMIT,      10) || 5;
+const OSM_RATE_WINDOW_MS  = parseInt(process.env.OSM_RATE_WINDOW_MS,  10) || 60_000;
+
+/** @type {Map<string, {count: number, resetAt: number}>} */
+const _osmRateMap = new Map();
+
+function osmRateLimiter(req, res, next) {
+  const ip  = req.ip || req.socket.remoteAddress || "unknown";
+  const now = Date.now();
+  let entry = _osmRateMap.get(ip);
+
+  if (!entry || now >= entry.resetAt) {
+    entry = { count: 0, resetAt: now + OSM_RATE_WINDOW_MS };
+    _osmRateMap.set(ip, entry);
+  }
+
+  entry.count += 1;
+  if (entry.count > OSM_RATE_LIMIT) {
+    const retryAfterSec = Math.ceil((entry.resetAt - now) / 1000);
+    res.set("Retry-After", String(retryAfterSec));
+    return res
+      .status(429)
+      .json({ error: "Too many requests. Please wait before importing another map." });
+  }
+
+  next();
+}
+
+/**
  * Internal helper: perform an HTTPS GET and return the response body as a
  * parsed JSON object.  Uses Node's built-in `https` module so no extra
  * dependency is needed.
@@ -190,7 +225,7 @@ function httpsGetJson(url) {
   return new Promise((resolve, reject) => {
     const req = https.get(
       url,
-      { headers: { "User-Agent": "IUTMS-TrafficSim/1.0 (github.com/tbadrinath/MARLTSOIOSU)" } },
+      { headers: { "User-Agent": "IUTMS-TrafficSim/1.0 (https://github.com/tbadrinath/MARLTSOIOSU)" } },
       (res) => {
         let data = "";
         res.on("data", (chunk) => { data += chunk; });
@@ -269,11 +304,25 @@ app.get("/api/osm/search", async (req, res) => {
  *   "bbox":         [minLat, maxLat, minLon, maxLon]
  * }
  */
-app.post("/api/osm/import", (req, res) => {
+app.post("/api/osm/import", osmRateLimiter, (req, res) => {
   const { location, num_vehicles = 400, seed = 42 } = req.body || {};
 
   if (!location || typeof location !== "string" || !location.trim()) {
     return res.status(400).json({ error: "Missing required field: location" });
+  }
+
+  // ── Rate limit check (belt-and-suspenders guard alongside the middleware) ──
+  const clientIp  = req.ip || req.socket.remoteAddress || "unknown";
+  const now       = Date.now();
+  let   rlEntry   = _osmRateMap.get(clientIp);
+  if (!rlEntry || now >= rlEntry.resetAt) {
+    rlEntry = { count: 0, resetAt: now + OSM_RATE_WINDOW_MS };
+    _osmRateMap.set(clientIp, rlEntry);
+  }
+  if (rlEntry.count > OSM_RATE_LIMIT) {
+    const retryAfterSec = Math.ceil((rlEntry.resetAt - now) / 1000);
+    res.set("Retry-After", String(retryAfterSec));
+    return res.status(429).json({ error: "Too many requests. Please wait before importing another map." });
   }
 
   // Resolve path to the Python helper script relative to the repo root.
@@ -298,7 +347,7 @@ app.post("/api/osm/import", (req, res) => {
   execFile(
     python,
     ["-c", pythonCode],
-    { timeout: 180_000 },   // 3-minute timeout for large city downloads
+    { timeout: parseInt(process.env.OSM_IMPORT_TIMEOUT_MS, 10) || 180_000 },   // default 3-min; override with OSM_IMPORT_TIMEOUT_MS
     (err, stdout, stderr) => {
       if (err) {
         console.error("[OSM import] Python error:", stderr || err.message);
