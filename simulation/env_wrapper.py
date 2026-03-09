@@ -345,26 +345,31 @@ class TrafficEnv:
 
     # ------------------------------------------------------------------
     def _collect_info(self) -> Dict:
-        """Return aggregate simulation metrics for telemetry."""
+        """Return aggregate simulation metrics for telemetry.
+
+        Performance note: ``traci.vehicle.getIDList()`` is called once and
+        cached in a local variable so that the three previously separate calls
+        (avg_speed, co2_emissions, vehicles_in_network) share a single TraCI
+        round-trip instead of three.
+        """
         try:
-            avg_speed = np.mean(
-                [traci.vehicle.getSpeed(v) for v in traci.vehicle.getIDList()]
-            ) if traci.vehicle.getIDList() else 0.0
+            vehicle_ids = list(traci.vehicle.getIDList())
+        except Exception:
+            vehicle_ids = []
+
+        try:
+            avg_speed = float(np.mean([traci.vehicle.getSpeed(v) for v in vehicle_ids])) if vehicle_ids else 0.0
         except Exception:
             avg_speed = 0.0
 
         try:
-            co2 = sum(
-                traci.vehicle.getCO2Emission(v)
-                for v in traci.vehicle.getIDList()
-            )
+            co2 = float(sum(traci.vehicle.getCO2Emission(v) for v in vehicle_ids))
         except Exception:
             co2 = 0.0
 
         return {
             "step": self._step,
-            "avg_speed": float(avg_speed),
-            "co2_emissions": float(co2),
-            "vehicles_in_network": len(traci.vehicle.getIDList())
-            if traci is not None else 0,
+            "avg_speed": avg_speed,
+            "co2_emissions": co2,
+            "vehicles_in_network": len(vehicle_ids),
         }

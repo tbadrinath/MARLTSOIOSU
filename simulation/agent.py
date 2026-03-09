@@ -197,7 +197,9 @@ class DQNAgent:
         if random.random() < self.epsilon:
             return random.randrange(self.action_dim)
 
-        state_t = torch.tensor(state, dtype=torch.float32, device=self.device).unsqueeze(0)
+        # torch.from_numpy shares memory with the numpy array (zero-copy) when
+        # the array is already float32 and on CPU, avoiding an unnecessary copy.
+        state_t = torch.from_numpy(state).unsqueeze(0).to(self.device)
         with torch.no_grad():
             q_values = self.q_net(state_t)
         return int(q_values.argmax(dim=1).item())
@@ -229,11 +231,14 @@ class DQNAgent:
             self.batch_size
         )
 
-        states_t = torch.tensor(states, device=self.device)
-        actions_t = torch.tensor(actions, device=self.device).unsqueeze(1)
-        rewards_t = torch.tensor(rewards, device=self.device)
-        next_states_t = torch.tensor(next_states, device=self.device)
-        dones_t = torch.tensor(dones, device=self.device)
+        # torch.as_tensor avoids an extra copy when the numpy arrays already
+        # have the target dtype (float32 / int64), unlike torch.tensor() which
+        # always copies.  The explicit dtype= guards against silent mismatches.
+        states_t      = torch.as_tensor(states,      dtype=torch.float32, device=self.device)
+        actions_t     = torch.as_tensor(actions,     dtype=torch.int64,   device=self.device).unsqueeze(1)
+        rewards_t     = torch.as_tensor(rewards,     dtype=torch.float32, device=self.device)
+        next_states_t = torch.as_tensor(next_states, dtype=torch.float32, device=self.device)
+        dones_t       = torch.as_tensor(dones,       dtype=torch.float32, device=self.device)
 
         # Current Q-values for chosen actions
         current_q = self.q_net(states_t).gather(1, actions_t).squeeze(1)
