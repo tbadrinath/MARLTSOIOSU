@@ -219,7 +219,7 @@ class TrafficEnv:
                 if prev_phase != phase:
                     self._phase_step[ts] = 0
                 else:
-                    self._phase_step[ts] = self._phase_step.get(ts, 0) + PHASE_DURATION
+                    self._phase_step[ts] = self._phase_step[ts] + PHASE_DURATION
 
         # Advance simulation by PHASE_DURATION steps
         for _ in range(PHASE_DURATION):
@@ -334,8 +334,8 @@ class TrafficEnv:
                 num_phases    = len(logic[0].phases) if logic else 4
             except Exception:
                 current_phase, num_phases = 0, 4
-            phase_norm     = current_phase / max(num_phases - 1, 1)
-            phase_time     = self._phase_step.get(ts_id, 0)
+            phase_norm      = current_phase / max(num_phases - 1, 1)
+            phase_time      = self._phase_step[ts_id]
             # Normalise phase-time against a generous maximum (10 × phase duration)
             phase_time_norm = min(phase_time / (PHASE_DURATION * 10), 1.0)
             features.append(phase_norm)

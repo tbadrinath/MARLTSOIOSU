@@ -298,12 +298,18 @@ function ConfigPanel() {
   const algoRows   = algo   === "ppo"       ? ppoParams       : dqnParams;
   const rewardRows = reward === "pressure"  ? pressureReward  : compositeReward;
 
+  // Build CLI preview from the param arrays to stay in sync
+  const ppoNSteps = ppoParams.find(([k]) => k === "Rollout steps")?.[1] ?? "512";
+  const dqnEps    = dqnParams.find(([k]) => k === "ε start / min")?.[1]?.split(" → ")?.[0] ?? "1.0";
+  const alpha     = compositeReward.find(([k]) => k === "α (throughput)")?.[1] ?? "0.4";
+  const beta      = compositeReward.find(([k]) => k === "β (queue)")?.[1] ?? "0.3";
+
   const cliCommand = [
     "python -m simulation.trainer",
     `  --algo ${algo}`,
     `  --reward ${reward}`,
-    algo === "ppo" ? "  --ppo-n-steps 512" : "  --epsilon-start 1.0",
-    reward === "pressure" ? "" : "  --alpha 0.4 --beta 0.3",
+    algo === "ppo" ? `  --ppo-n-steps ${ppoNSteps}` : `  --epsilon-start ${dqnEps}`,
+    reward === "pressure" ? "" : `  --alpha ${alpha} --beta ${beta}`,
     "  --episodes 200 --max-steps 3600",
   ].filter(Boolean).join(" \\\n");
 

@@ -273,12 +273,14 @@ class TestPressureReward:
     def test_pressure_reward_zero_when_balanced(self):
         """When incoming and outgoing halting numbers are equal, pressure = 0."""
         env = self._make_env()
-        _traci_stub.lane.getLastStepHaltingNumber.return_value = 3
-        r = env._compute_reward("A0")
-        # in = 2 lanes × 3 = 6, out = 2 lanes × 3 = 6 → pressure = 0
-        assert r == pytest.approx(0.0, abs=1e-6)
-        # Restore default
-        _traci_stub.lane.getLastStepHaltingNumber.return_value = 2
+        original = _traci_stub.lane.getLastStepHaltingNumber.return_value
+        try:
+            _traci_stub.lane.getLastStepHaltingNumber.return_value = 3
+            r = env._compute_reward("A0")
+            # in = 2 lanes × 3 = 6, out = 2 lanes × 3 = 6 → pressure = 0
+            assert r == pytest.approx(0.0, abs=1e-6)
+        finally:
+            _traci_stub.lane.getLastStepHaltingNumber.return_value = original
 
     def test_composite_vs_pressure_differ(self):
         from simulation.env_wrapper import REWARD_MODE_COMPOSITE, REWARD_MODE_PRESSURE

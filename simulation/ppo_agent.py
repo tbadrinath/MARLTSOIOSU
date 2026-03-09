@@ -442,14 +442,13 @@ class PPOAgent:
                 policy_loss = -torch.min(surr1, surr2).mean()
 
                 # Value loss (clipped, following the PPO paper)
-                values_pred_clipped = (
-                    torch.as_tensor(self.buffer.values[: len(states_b)], device=self.device)
-                    + torch.clamp(
-                        values_pred
-                        - torch.as_tensor(self.buffer.values[: len(states_b)], device=self.device),
-                        -self.clip_epsilon,
-                        self.clip_epsilon,
-                    )
+                values_old_t = torch.as_tensor(
+                    self.buffer.values[: len(states_b)], device=self.device
+                )
+                values_pred_clipped = values_old_t + torch.clamp(
+                    values_pred - values_old_t,
+                    -self.clip_epsilon,
+                    self.clip_epsilon,
                 )
                 value_loss = torch.max(
                     nn.functional.mse_loss(values_pred, returns_t),
