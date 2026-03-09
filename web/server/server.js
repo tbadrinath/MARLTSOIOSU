@@ -48,17 +48,45 @@ app.use(cors());
 app.use(express.json());
 
 // ---------------------------------------------------------------------------
-// In-memory ring-buffer for metric history
+// In-memory ring-buffer for metric history (O(1) writes, O(k) reads)
 // ---------------------------------------------------------------------------
+//
+// Performance note: the previous implementation used Array.push() + shift().
+// Array.shift() is O(n) because every element must be moved one index left.
+// At MAX_HISTORY = 500 entries this is negligible at low throughput, but under
+// a high-frequency simulation the repeated O(n) shifts add up.  A circular
+// ring-buffer keeps both writes and the full-capacity eviction at O(1).
 
-/** @type {Array<Object>} */
-const metricsHistory = [];
+/** @type {Array<Object|null>} */
+const metricsRing = new Array(MAX_HISTORY).fill(null);
+let ringHead  = 0;   // index of the *next* write slot
+let ringCount = 0;   // number of valid entries currently stored
 
+/**
+ * Append one metrics payload to the ring-buffer (O(1)).
+ * @param {Object} payload
+ */
 function appendMetric(payload) {
-  metricsHistory.push({ ...payload, serverTs: Date.now() });
-  if (metricsHistory.length > MAX_HISTORY) {
-    metricsHistory.shift();
+  metricsRing[ringHead] = { ...payload, serverTs: Date.now() };
+  ringHead = (ringHead + 1) % MAX_HISTORY;
+  if (ringCount < MAX_HISTORY) ringCount++;
+}
+
+/**
+ * Return the most-recent `limit` entries in chronological order (O(k)).
+ * @param {number} limit
+ * @returns {Array<Object>}
+ */
+function getRecentHistory(limit) {
+  const count  = Math.min(limit, ringCount);
+  const result = new Array(count);
+  // Oldest retained entry sits at (ringHead - ringCount) mod MAX_HISTORY.
+  // We want the last `count` entries, so start from (ringHead - count).
+  const start = (ringHead - count + MAX_HISTORY) % MAX_HISTORY;
+  for (let i = 0; i < count; i++) {
+    result[i] = metricsRing[(start + i) % MAX_HISTORY];
   }
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -124,7 +152,7 @@ app.get("/api/metrics/history", (req, res) => {
     parseInt(req.query.limit, 10) || MAX_HISTORY,
     MAX_HISTORY
   );
-  const data = metricsHistory.slice(-limit);
+  const data = getRecentHistory(limit);
   return res.json({ count: data.length, data });
 });
 
@@ -137,7 +165,7 @@ app.get("/api/status", (_req, res) => {
   res.json({
     status: "ok",
     uptime: process.uptime(),
-    metricsBuffered: metricsHistory.length,
+    metricsBuffered: ringCount,
     connectedClients: io.engine.clientsCount,
   });
 });
@@ -150,9 +178,10 @@ io.on("connection", (socket) => {
   console.log(`[Socket.io] Client connected: ${socket.id}`);
 
   // Send recent history to the newly connected client
+  const history = getRecentHistory(MAX_HISTORY);
   socket.emit("history", {
-    count: metricsHistory.length,
-    data: metricsHistory.slice(-MAX_HISTORY),
+    count: history.length,
+    data: history,
   });
 
   socket.on("disconnect", () => {
