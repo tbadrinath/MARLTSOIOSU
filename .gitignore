@@ -1,0 +1,48 @@
+# Python build artefacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env
+
+# Node.js
+node_modules/
+web/server/node_modules/
+web/client/node_modules/
+
+# React build output
+web/client/build/
+
+# PyTorch checkpoints (large binary files – committed separately if needed)
+checkpoints/
+
+# SUMO output files
+*.xml.bak
+*.fcd.xml
+*.netstate.xml
+*.summary.xml
+tripinfo*.xml
+*.log
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# pytest cache
+.pytest_cache/
+.coverage
+htmlcov/

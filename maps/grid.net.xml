@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    grid.net.xml
+    ------------
+    3x3 urban grid network for the Intelligent Urban Traffic Management System
+    (IUTMS).
+
+    The network contains:
+      • 9 internal (intersection) nodes arranged in a 3x3 grid.
+      • 12 external (boundary) nodes used as trip origins/destinations.
+      • 4-way signalised intersections (traffic lights) at every internal node.
+      • Two-lane bidirectional edges with a 50 km/h speed limit.
+
+    Generated for SUMO 1.15.0.
+-->
+<net version="1.9" junctionCornerDetail="5" limitTurnSpeed="5.50" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/net_file.xsd">
+
+    <!-- ================================================================ -->
+    <!--  TYPE DEFINITIONS                                                -->
+    <!-- ================================================================ -->
+    <type id="urban2lane" priority="2" numLanes="2" speed="13.89" disallow="pedestrian"/>
+
+    <!-- ================================================================ -->
+    <!--  NODES                                                           -->
+    <!-- ================================================================ -->
+
+    <!-- Internal 3x3 grid nodes (signalised intersections) -->
+    <!-- Row 0 (y=400) -->
+    <node id="A0" x="200" y="400" type="traffic_light"/>
+    <node id="B0" x="400" y="400" type="traffic_light"/>
+    <node id="C0" x="600" y="400" type="traffic_light"/>
+    <!-- Row 1 (y=200) -->
+    <node id="A1" x="200" y="200" type="traffic_light"/>
+    <node id="B1" x="400" y="200" type="traffic_light"/>
+    <node id="C1" x="600" y="200" type="traffic_light"/>
+    <!-- Row 2 (y=0) -->
+    <node id="A2" x="200" y="0"   type="traffic_light"/>
+    <node id="B2" x="400" y="0"   type="traffic_light"/>
+    <node id="C2" x="600" y="0"   type="traffic_light"/>
+
+    <!-- External boundary nodes (no signals) -->
+    <node id="N0" x="200" y="600" type="dead_end"/>
+    <node id="N1" x="400" y="600" type="dead_end"/>
+    <node id="N2" x="600" y="600" type="dead_end"/>
+    <node id="S0" x="200" y="-200" type="dead_end"/>
+    <node id="S1" x="400" y="-200" type="dead_end"/>
+    <node id="S2" x="600" y="-200" type="dead_end"/>
+    <node id="W0" x="0"   y="400" type="dead_end"/>
+    <node id="W1" x="0"   y="200" type="dead_end"/>
+    <node id="W2" x="0"   y="0"   type="dead_end"/>
+    <node id="E0" x="800" y="400" type="dead_end"/>
+    <node id="E1" x="800" y="200" type="dead_end"/>
+    <node id="E2" x="800" y="0"   type="dead_end"/>
+
+    <!-- ================================================================ -->
+    <!--  EDGES (bidirectional pairs)                                     -->
+    <!-- ================================================================ -->
+
+    <!-- Horizontal internal edges – Row 0 -->
+    <edge id="A0B0"  from="A0" to="B0" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="B0A0"  from="B0" to="A0" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="B0C0"  from="B0" to="C0" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="C0B0"  from="C0" to="B0" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+
+    <!-- Horizontal internal edges – Row 1 -->
+    <edge id="A1B1"  from="A1" to="B1" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="B1A1"  from="B1" to="A1" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="B1C1"  from="B1" to="C1" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="C1B1"  from="C1" to="B1" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+
+    <!-- Horizontal internal edges – Row 2 -->
+    <edge id="A2B2"  from="A2" to="B2" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="B2A2"  from="B2" to="A2" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="B2C2"  from="B2" to="C2" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="C2B2"  from="C2" to="B2" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+
+    <!-- Vertical internal edges – Column A -->
+    <edge id="A0A1"  from="A0" to="A1" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="A1A0"  from="A1" to="A0" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="A1A2"  from="A1" to="A2" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="A2A1"  from="A2" to="A1" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+
+    <!-- Vertical internal edges – Column B -->
+    <edge id="B0B1"  from="B0" to="B1" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="B1B0"  from="B1" to="B0" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="B1B2"  from="B1" to="B2" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="B2B1"  from="B2" to="B1" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+
+    <!-- Vertical internal edges – Column C -->
+    <edge id="C0C1"  from="C0" to="C1" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="C1C0"  from="C1" to="C0" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="C1C2"  from="C1" to="C2" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="C2C1"  from="C2" to="C1" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+
+    <!-- Boundary entry/exit edges – North -->
+    <edge id="N0A0"  from="N0" to="A0" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="A0N0"  from="A0" to="N0" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="N1B0"  from="N1" to="B0" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="B0N1"  from="B0" to="N1" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="N2C0"  from="N2" to="C0" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="C0N2"  from="C0" to="N2" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+
+    <!-- Boundary entry/exit edges – South -->
+    <edge id="S0A2"  from="S0" to="A2" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="A2S0"  from="A2" to="S0" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="S1B2"  from="S1" to="B2" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="B2S1"  from="B2" to="S1" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="S2C2"  from="S2" to="C2" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="C2S2"  from="C2" to="S2" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+
+    <!-- Boundary entry/exit edges – West -->
+    <edge id="W0A0"  from="W0" to="A0" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="A0W0"  from="A0" to="W0" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="W1A1"  from="W1" to="A1" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="A1W1"  from="A1" to="W1" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="W2A2"  from="W2" to="A2" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="A2W2"  from="A2" to="W2" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+
+    <!-- Boundary entry/exit edges – East -->
+    <edge id="C0E0"  from="C0" to="E0" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="E0C0"  from="E0" to="C0" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="C1E1"  from="C1" to="E1" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="E1C1"  from="E1" to="C1" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="C2E2"  from="C2" to="E2" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+    <edge id="E2C2"  from="E2" to="C2" type="urban2lane" priority="2" numLanes="2" speed="13.89"/>
+
+    <!-- ================================================================ -->
+    <!--  TRAFFIC LIGHT PROGRAMS                                          -->
+    <!--  Each intersection has 4 phases:                                 -->
+    <!--    0: N-S green (EW red)                                         -->
+    <!--    1: N-S yellow                                                 -->
+    <!--    2: E-W green (NS red)                                         -->
+    <!--    3: E-W yellow                                                 -->
+    <!-- ================================================================ -->
+
+    <tlLogic id="A0" type="static" programID="0" offset="0">
+        <phase duration="30" state="GGrrGGrr"/>
+        <phase duration="5"  state="yyrryyrr"/>
+        <phase duration="30" state="rrGGrrGG"/>
+        <phase duration="5"  state="rryyrryy"/>
+    </tlLogic>
+
+    <tlLogic id="B0" type="static" programID="0" offset="10">
+        <phase duration="30" state="GGrrGGrr"/>
+        <phase duration="5"  state="yyrryyrr"/>
+        <phase duration="30" state="rrGGrrGG"/>
+        <phase duration="5"  state="rryyrryy"/>
+    </tlLogic>
+
+    <tlLogic id="C0" type="static" programID="0" offset="20">
+        <phase duration="30" state="GGrrGGrr"/>
+        <phase duration="5"  state="yyrryyrr"/>
+        <phase duration="30" state="rrGGrrGG"/>
+        <phase duration="5"  state="rryyrryy"/>
+    </tlLogic>
+
+    <tlLogic id="A1" type="static" programID="0" offset="0">
+        <phase duration="30" state="GGrrGGrr"/>
+        <phase duration="5"  state="yyrryyrr"/>
+        <phase duration="30" state="rrGGrrGG"/>
+        <phase duration="5"  state="rryyrryy"/>
+    </tlLogic>
+
+    <tlLogic id="B1" type="static" programID="0" offset="10">
+        <phase duration="30" state="GGrrGGrr"/>
+        <phase duration="5"  state="yyrryyrr"/>
+        <phase duration="30" state="rrGGrrGG"/>
+        <phase duration="5"  state="rryyrryy"/>
+    </tlLogic>
+
+    <tlLogic id="C1" type="static" programID="0" offset="20">
+        <phase duration="30" state="GGrrGGrr"/>
+        <phase duration="5"  state="yyrryyrr"/>
+        <phase duration="30" state="rrGGrrGG"/>
+        <phase duration="5"  state="rryyrryy"/>
+    </tlLogic>
+
+    <tlLogic id="A2" type="static" programID="0" offset="0">
+        <phase duration="30" state="GGrrGGrr"/>
+        <phase duration="5"  state="yyrryyrr"/>
+        <phase duration="30" state="rrGGrrGG"/>
+        <phase duration="5"  state="rryyrryy"/>
+    </tlLogic>
+
+    <tlLogic id="B2" type="static" programID="0" offset="10">
+        <phase duration="30" state="GGrrGGrr"/>
+        <phase duration="5"  state="yyrryyrr"/>
+        <phase duration="30" state="rrGGrrGG"/>
+        <phase duration="5"  state="rryyrryy"/>
+    </tlLogic>
+
+    <tlLogic id="C2" type="static" programID="0" offset="20">
+        <phase duration="30" state="GGrrGGrr"/>
+        <phase duration="5"  state="yyrryyrr"/>
+        <phase duration="30" state="rrGGrrGG"/>
+        <phase duration="5"  state="rryyrryy"/>
+    </tlLogic>
+
+    <!-- ================================================================ -->
+    <!--  CONNECTIONS                                                      -->
+    <!-- ================================================================ -->
+
+    <!-- Connections are automatically inferred by SUMO from the edge     -->
+    <!-- definitions above. Explicit connection entries are added only    -->
+    <!-- where turn-movement control is required.                         -->
+
+</net>
