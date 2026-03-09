@@ -1,0 +1,16 @@
+# ============================================================
+# IUTMS – Intelligent Urban Traffic Management System
+# Python dependencies
+# ============================================================
+
+# Core ML / numerical
+torch>=2.0.0
+numpy>=1.24.0
+
+# SUMO TraCI interface (install SUMO separately; see README)
+# traci is bundled with SUMO – no pip install needed.
+# Uncomment the line below if using the standalone Eclipse SUMO package:
+# eclipse-sumo>=1.15.0
+
+# HTTP client (for sending telemetry to the Node.js server)
+requests>=2.31.0

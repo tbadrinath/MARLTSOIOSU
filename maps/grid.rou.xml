@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    grid.rou.xml
+    ------------
+    Vehicle demand / route definitions for the 3x3 IUTMS grid network.
+
+    Traffic scenario: oversaturated urban peak (approx. 1 000 veh/hr/direction)
+    Simulation duration: 3 600 seconds (1 hour).
+
+    Route types cover all 12 boundary-to-boundary origin–destination pairs
+    that pass through at least one signalised intersection.
+
+    Vehicle types:
+      • passenger – standard car (vType default)
+      • bus       – slow, larger, higher PCE
+
+    Flows are stochastic (Poisson) and cover the full simulation horizon.
+-->
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+
+    <!-- ================================================================ -->
+    <!--  VEHICLE TYPES                                                   -->
+    <!-- ================================================================ -->
+
+    <vType id="passenger" accel="2.6" decel="4.5" sigma="0.5"
+           length="5" minGap="2.5" maxSpeed="13.89"
+           guiShape="passenger" color="0.8,0.8,0.8"/>
+
+    <vType id="bus" accel="1.2" decel="3.0" sigma="0.3"
+           length="12" minGap="3" maxSpeed="10"
+           guiShape="bus" color="0.2,0.6,0.9"/>
+
+    <!-- ================================================================ -->
+    <!--  ROUTES                                                          -->
+    <!--  Naming: r_<origin>_<destination>                               -->
+    <!-- ================================================================ -->
+
+    <!-- North → South through-routes -->
+    <route id="r_N0_S0" edges="N0A0 A0A1 A1A2 A2S0"/>
+    <route id="r_N1_S1" edges="N1B0 B0B1 B1B2 B2S1"/>
+    <route id="r_N2_S2" edges="N2C0 C0C1 C1C2 C2S2"/>
+
+    <!-- South → North through-routes -->
+    <route id="r_S0_N0" edges="S0A2 A2A1 A1A0 A0N0"/>
+    <route id="r_S1_N1" edges="S1B2 B2B1 B1B0 B0N1"/>
+    <route id="r_S2_N2" edges="S2C2 C2C1 C1C0 C0N2"/>
+
+    <!-- West → East through-routes -->
+    <route id="r_W0_E0" edges="W0A0 A0B0 B0C0 C0E0"/>
+    <route id="r_W1_E1" edges="W1A1 A1B1 B1C1 C1E1"/>
+    <route id="r_W2_E2" edges="W2A2 A2B2 B2C2 C2E2"/>
+
+    <!-- East → West through-routes -->
+    <route id="r_E0_W0" edges="E0C0 C0B0 B0A0 A0W0"/>
+    <route id="r_E1_W1" edges="E1C1 C1B1 B1A1 A1W1"/>
+    <route id="r_E2_W2" edges="E2C2 C2B2 B2A2 A2W2"/>
+
+    <!-- Diagonal cross-routes (turning movements) -->
+    <route id="r_N0_E0" edges="N0A0 A0B0 B0C0 C0E0"/>
+    <route id="r_N0_W0" edges="N0A0 A0W0"/>
+    <route id="r_W0_S0" edges="W0A0 A0A1 A1A2 A2S0"/>
+    <route id="r_W0_N0" edges="W0A0 A0N0"/>
+
+    <route id="r_N2_W0" edges="N2C0 C0B0 B0A0 A0W0"/>
+    <route id="r_S2_W2" edges="S2C2 C2B2 B2A2 A2W2"/>
+    <route id="r_E0_S2" edges="E0C0 C0C1 C1C2 C2S2"/>
+    <route id="r_E2_N2" edges="E2C2 C2C1 C1C0 C0N2"/>
+
+    <!-- Short intra-grid routes -->
+    <route id="r_W1_S1" edges="W1A1 A1B1 B1B2 B2S1"/>
+    <route id="r_W1_N1" edges="W1A1 A1A0 A0B0 B0N1"/>
+    <route id="r_E1_N1" edges="E1C1 C1B1 B1B0 B0N1"/>
+    <route id="r_E1_S1" edges="E1C1 C1B1 B1B2 B2S1"/>
+
+    <!-- ================================================================ -->
+    <!--  VEHICLE FLOWS                                                   -->
+    <!--                                                                  -->
+    <!--  vehsPerHour is set to create oversaturated conditions.          -->
+    <!--  Random seed is fixed (via SUMO --seed) for reproducibility.    -->
+    <!-- ================================================================ -->
+
+    <!-- Main arterial flows (N-S) -->
+    <flow id="f_N0_S0" route="r_N0_S0" type="passenger"
+          begin="0" end="3600" vehsPerHour="600" departLane="random" departSpeed="max"/>
+    <flow id="f_N1_S1" route="r_N1_S1" type="passenger"
+          begin="0" end="3600" vehsPerHour="700" departLane="random" departSpeed="max"/>
+    <flow id="f_N2_S2" route="r_N2_S2" type="passenger"
+          begin="0" end="3600" vehsPerHour="600" departLane="random" departSpeed="max"/>
+    <flow id="f_S0_N0" route="r_S0_N0" type="passenger"
+          begin="0" end="3600" vehsPerHour="550" departLane="random" departSpeed="max"/>
+    <flow id="f_S1_N1" route="r_S1_N1" type="passenger"
+          begin="0" end="3600" vehsPerHour="650" departLane="random" departSpeed="max"/>
+    <flow id="f_S2_N2" route="r_S2_N2" type="passenger"
+          begin="0" end="3600" vehsPerHour="550" departLane="random" departSpeed="max"/>
+
+    <!-- Main arterial flows (E-W) -->
+    <flow id="f_W0_E0" route="r_W0_E0" type="passenger"
+          begin="0" end="3600" vehsPerHour="600" departLane="random" departSpeed="max"/>
+    <flow id="f_W1_E1" route="r_W1_E1" type="passenger"
+          begin="0" end="3600" vehsPerHour="700" departLane="random" departSpeed="max"/>
+    <flow id="f_W2_E2" route="r_W2_E2" type="passenger"
+          begin="0" end="3600" vehsPerHour="600" departLane="random" departSpeed="max"/>
+    <flow id="f_E0_W0" route="r_E0_W0" type="passenger"
+          begin="0" end="3600" vehsPerHour="550" departLane="random" departSpeed="max"/>
+    <flow id="f_E1_W1" route="r_E1_W1" type="passenger"
+          begin="0" end="3600" vehsPerHour="650" departLane="random" departSpeed="max"/>
+    <flow id="f_E2_W2" route="r_E2_W2" type="passenger"
+          begin="0" end="3600" vehsPerHour="550" departLane="random" departSpeed="max"/>
+
+    <!-- Turning movement flows -->
+    <flow id="f_N0_E0" route="r_N0_E0" type="passenger"
+          begin="0" end="3600" vehsPerHour="150" departLane="random" departSpeed="max"/>
+    <flow id="f_N2_W0" route="r_N2_W0" type="passenger"
+          begin="0" end="3600" vehsPerHour="150" departLane="random" departSpeed="max"/>
+    <flow id="f_E0_S2" route="r_E0_S2" type="passenger"
+          begin="0" end="3600" vehsPerHour="150" departLane="random" departSpeed="max"/>
+    <flow id="f_E2_N2" route="r_E2_N2" type="passenger"
+          begin="0" end="3600" vehsPerHour="150" departLane="random" departSpeed="max"/>
+    <flow id="f_W1_S1" route="r_W1_S1" type="passenger"
+          begin="0" end="3600" vehsPerHour="120" departLane="random" departSpeed="max"/>
+    <flow id="f_W1_N1" route="r_W1_N1" type="passenger"
+          begin="0" end="3600" vehsPerHour="120" departLane="random" departSpeed="max"/>
+    <flow id="f_E1_N1" route="r_E1_N1" type="passenger"
+          begin="0" end="3600" vehsPerHour="120" departLane="random" departSpeed="max"/>
+    <flow id="f_E1_S1" route="r_E1_S1" type="passenger"
+          begin="0" end="3600" vehsPerHour="120" departLane="random" departSpeed="max"/>
+
+    <!-- Bus flows on main corridors -->
+    <flow id="f_bus_NS" route="r_N1_S1" type="bus"
+          begin="0" end="3600" vehsPerHour="30" departLane="0" departSpeed="max"/>
+    <flow id="f_bus_EW" route="r_W1_E1" type="bus"
+          begin="0" end="3600" vehsPerHour="30" departLane="0" departSpeed="max"/>
+
+    <!-- Evening peak surge (seconds 1800–3000) -->
+    <flow id="f_peak_N1_S1" route="r_N1_S1" type="passenger"
+          begin="1800" end="3000" vehsPerHour="400" departLane="random" departSpeed="max"/>
+    <flow id="f_peak_W1_E1" route="r_W1_E1" type="passenger"
+          begin="1800" end="3000" vehsPerHour="400" departLane="random" departSpeed="max"/>
+
+</routes>
