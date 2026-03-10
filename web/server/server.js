@@ -16,8 +16,12 @@
 
 "use strict";
 
-const http = require("http");
-const path = require("path");
+const http     = require("http");
+const https    = require("https");
+const path     = require("path");
+const { execFile } = require("child_process");
+const os       = require("os");
+const fs       = require("fs");
 
 const cors = require("cors");
 const express = require("express");
@@ -171,6 +175,207 @@ app.get("/api/status", (_req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// OSM / Map endpoints
+// ---------------------------------------------------------------------------
+
+/**
+ * Simple in-memory rate limiter for the OSM import endpoint.
+ *
+ * Each unique IP may trigger at most OSM_RATE_LIMIT requests within
+ * OSM_RATE_WINDOW_MS milliseconds.  This prevents abuse of the endpoint that
+ * spawns a child process and makes external HTTP calls.
+ */
+const OSM_RATE_LIMIT      = parseInt(process.env.OSM_RATE_LIMIT,      10) || 5;
+const OSM_RATE_WINDOW_MS  = parseInt(process.env.OSM_RATE_WINDOW_MS,  10) || 60_000;
+
+/** @type {Map<string, {count: number, resetAt: number}>} */
+const _osmRateMap = new Map();
+
+function osmRateLimiter(req, res, next) {
+  const ip  = req.ip || req.socket.remoteAddress || "unknown";
+  const now = Date.now();
+  let entry = _osmRateMap.get(ip);
+
+  if (!entry || now >= entry.resetAt) {
+    entry = { count: 0, resetAt: now + OSM_RATE_WINDOW_MS };
+    _osmRateMap.set(ip, entry);
+  }
+
+  entry.count += 1;
+  if (entry.count > OSM_RATE_LIMIT) {
+    const retryAfterSec = Math.ceil((entry.resetAt - now) / 1000);
+    res.set("Retry-After", String(retryAfterSec));
+    return res
+      .status(429)
+      .json({ error: "Too many requests. Please wait before importing another map." });
+  }
+
+  next();
+}
+
+/**
+ * Internal helper: perform an HTTPS GET and return the response body as a
+ * parsed JSON object.  Uses Node's built-in `https` module so no extra
+ * dependency is needed.
+ *
+ * @param {string} url  Full URL including query string.
+ * @returns {Promise<any>}
+ */
+function httpsGetJson(url) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(
+      url,
+      { headers: { "User-Agent": "IUTMS-TrafficSim/1.0 (https://github.com/tbadrinath/MARLTSOIOSU)" } },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => { data += chunk; });
+        res.on("end", () => {
+          try { resolve(JSON.parse(data)); }
+          catch (e) { reject(new Error("Invalid JSON from upstream: " + e.message)); }
+        });
+      }
+    );
+    req.on("error", reject);
+    req.setTimeout(15000, () => { req.destroy(new Error("Request timed out")); });
+  });
+}
+
+/**
+ * GET /api/osm/search?q=<location>&limit=<n>
+ * -------------------------------------------
+ * Proxy to the Nominatim geocoding API.  Proxying avoids browser CORS
+ * restrictions and ensures the correct User-Agent is sent as required by
+ * the Nominatim usage policy.
+ *
+ * Query params:
+ *   q     – free-form location string (required)
+ *   limit – number of results to return, 1–10 (default: 5)
+ */
+app.get("/api/osm/search", async (req, res) => {
+  const query = (req.query.q || "").trim();
+  if (!query) {
+    return res.status(400).json({ error: "Missing query parameter: q" });
+  }
+  const limit = Math.min(parseInt(req.query.limit, 10) || 5, 10);
+
+  try {
+    const params = new URLSearchParams({
+      q:      query,
+      format: "json",
+      limit:  String(limit),
+    });
+    const url = `https://nominatim.openstreetmap.org/search?${params}`;
+    const data = await httpsGetJson(url);
+
+    const results = (Array.isArray(data) ? data : []).map((r) => ({
+      display_name: r.display_name || "",
+      lat:          parseFloat(r.lat) || 0,
+      lon:          parseFloat(r.lon) || 0,
+      boundingbox:  r.boundingbox || [],
+      osm_type:     r.osm_type || "",
+      osm_id:       r.osm_id   || "",
+    }));
+
+    return res.json({ count: results.length, results });
+  } catch (err) {
+    console.error("[OSM search] Error:", err.message);
+    return res.status(502).json({ error: "Nominatim request failed: " + err.message });
+  }
+});
+
+/**
+ * POST /api/osm/import
+ * --------------------
+ * Download OSM data and convert it to a SUMO network by invoking the
+ * Python `simulation/osm_importer.py` pipeline.
+ *
+ * Request body (JSON):
+ * {
+ *   "location":      <string>,   // human-readable city/place name
+ *   "num_vehicles":  <number>,   // optional, default 400
+ *   "seed":          <number>    // optional, default 42
+ * }
+ *
+ * Response (JSON):
+ * {
+ *   "display_name": <string>,
+ *   "net_file":     <string>,   // absolute path to .net.xml
+ *   "route_file":   <string>,   // absolute path to .rou.xml
+ *   "bbox":         [minLat, maxLat, minLon, maxLon]
+ * }
+ */
+app.post("/api/osm/import", osmRateLimiter, (req, res) => {
+  const { location, num_vehicles = 400, seed = 42 } = req.body || {};
+
+  if (!location || typeof location !== "string" || !location.trim()) {
+    return res.status(400).json({ error: "Missing required field: location" });
+  }
+
+  // ── Rate limit check (belt-and-suspenders guard alongside the middleware) ──
+  const clientIp  = req.ip || req.socket.remoteAddress || "unknown";
+  const now       = Date.now();
+  let   rlEntry   = _osmRateMap.get(clientIp);
+  if (!rlEntry || now >= rlEntry.resetAt) {
+    rlEntry = { count: 0, resetAt: now + OSM_RATE_WINDOW_MS };
+    _osmRateMap.set(clientIp, rlEntry);
+  }
+  if (rlEntry.count > OSM_RATE_LIMIT) {
+    const retryAfterSec = Math.ceil((rlEntry.resetAt - now) / 1000);
+    res.set("Retry-After", String(retryAfterSec));
+    return res.status(429).json({ error: "Too many requests. Please wait before importing another map." });
+  }
+
+  // Resolve path to the Python helper script relative to the repo root.
+  // server.js lives in  web/server/; repo root is two levels up.
+  const repoRoot = path.resolve(__dirname, "..", "..");
+  const scriptPath = path.join(repoRoot, "simulation", "osm_importer.py");
+
+  // Output directory: <repo>/maps/osm/<sanitised-location>/
+  const sanitised = location.trim().replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
+  const outputDir  = path.join(repoRoot, "maps", "osm", sanitised);
+
+  const pythonCode = [
+    "import sys, json",
+    `sys.path.insert(0, ${JSON.stringify(repoRoot)})`,
+    "from simulation.osm_importer import import_map",
+    `result = import_map(${JSON.stringify(location)}, ${JSON.stringify(outputDir)}, num_vehicles=${num_vehicles}, seed=${seed})`,
+    "print(json.dumps(result))",
+  ].join("; ");
+
+  const python = process.env.PYTHON_BIN || "python3";
+
+  execFile(
+    python,
+    ["-c", pythonCode],
+    { timeout: parseInt(process.env.OSM_IMPORT_TIMEOUT_MS, 10) || 180_000 },   // default 3-min; override with OSM_IMPORT_TIMEOUT_MS
+    (err, stdout, stderr) => {
+      if (err) {
+        console.error("[OSM import] Python error:", stderr || err.message);
+        return res.status(500).json({
+          error: "OSM import failed",
+          detail: (stderr || err.message || "").slice(0, 1000),
+        });
+      }
+
+      let result;
+      try {
+        result = JSON.parse(stdout.trim());
+      } catch (parseErr) {
+        return res.status(500).json({
+          error: "Failed to parse Python output",
+          detail: stdout.slice(0, 500),
+        });
+      }
+
+      // Broadcast the new map info to all connected dashboard clients
+      io.emit("osm_import_complete", result);
+
+      return res.json(result);
+    }
+  );
+});
+
+// ---------------------------------------------------------------------------
 // Socket.io connection handling
 // ---------------------------------------------------------------------------
 
@@ -198,6 +403,8 @@ server.listen(PORT, () => {
   console.log(`  POST /api/metrics          – ingest step metrics`);
   console.log(`  GET  /api/metrics/history  – fetch metric history`);
   console.log(`  GET  /api/status           – health check`);
+  console.log(`  GET  /api/osm/search       – geocode a location (Nominatim)`);
+  console.log(`  POST /api/osm/import       – download OSM map & convert to SUMO`);
   console.log(`  Socket.io on ws://localhost:${PORT}`);
 });
 

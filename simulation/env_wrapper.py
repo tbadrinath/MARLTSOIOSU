@@ -12,12 +12,20 @@ Observation space per agent (spatio-temporal):
     - Lane occupancy (density)
     - Upstream / downstream congestion status sampled from induction loops
       placed 100 m from each stopline.
+    - [optional] current phase index (normalised) and time in current phase
+      Enabled with ``use_phase_obs=True`` (inspired by AndreaVidali/
+      Deep-QLearning-Agent-for-Traffic-Signal-Control).
 
-Reward (composite, fairness-aware):
+Reward modes
+------------
+composite (default):
     R = α·Throughput − β·Queue − γ·WaitTime − δ·SpillbackPenalty
+    Fairness-aware formula that prevents main-road bias.
 
-    where SpillbackPenalty is applied when a downstream lane exceeds 90 %
-    capacity, preventing main-road bias.
+pressure:
+    R = −|incoming_queue − outgoing_queue|
+    Inspired by LucasAlegre/sumo-rl — simple, scale-invariant, and
+    effective in oversaturated networks.
 """
 
 from __future__ import annotations
@@ -55,6 +63,10 @@ MAX_LANE_VEHICLES = 40       # normalisation constant for vehicle counts
 MAX_WAIT_TIME = 300.0        # seconds – normalisation constant
 PHASE_DURATION = 10          # simulation steps per phase action
 
+# Supported reward modes
+REWARD_MODE_COMPOSITE = "composite"
+REWARD_MODE_PRESSURE  = "pressure"
+
 
 class TrafficEnv:
     """
@@ -76,9 +88,18 @@ class TrafficEnv:
     sumo_port : int
         TraCI port (use different values for parallel training workers).
     alpha, beta, gamma, delta : float
-        Reward weighting coefficients.
+        Reward weighting coefficients (composite mode only).
     seed : int
         Random seed forwarded to SUMO.
+    reward_mode : str
+        ``"composite"`` (default) – weighted sum of throughput, queue,
+        wait-time, and spillback components.
+        ``"pressure"`` – negative absolute pressure (|incoming − outgoing|
+        queue lengths), inspired by LucasAlegre/sumo-rl.
+    use_phase_obs : bool
+        When *True*, append two extra features to every observation vector:
+        (normalised current-phase index, normalised time-in-phase).
+        Inspired by AndreaVidali/Deep-QLearning-Agent-for-Traffic-Signal-Control.
     """
 
     # ------------------------------------------------------------------
@@ -95,6 +116,8 @@ class TrafficEnv:
         gamma: float = DEFAULT_GAMMA,
         delta: float = DEFAULT_DELTA,
         seed: int = 42,
+        reward_mode: str = REWARD_MODE_COMPOSITE,
+        use_phase_obs: bool = False,
     ) -> None:
         self.net_file = net_file
         self.route_file = route_file
@@ -107,6 +130,8 @@ class TrafficEnv:
         self.gamma = gamma
         self.delta = delta
         self.seed = seed
+        self.reward_mode  = reward_mode
+        self.use_phase_obs = use_phase_obs
 
         # Populated in reset()
         self.ts_ids: List[str] = []
@@ -116,6 +141,8 @@ class TrafficEnv:
         self._running: bool = False
         self._prev_halted: Dict[str, float] = {}
         self._prev_departed: int = 0
+        # Phase-observation state
+        self._phase_step: Dict[str, int] = {}   # ts_id -> steps in current phase
 
     # ------------------------------------------------------------------
     # Public API
@@ -156,6 +183,7 @@ class TrafficEnv:
         # Initialise previous-step bookkeeping
         self._prev_halted = {ts: 0.0 for ts in self.ts_ids}
         self._prev_departed = 0
+        self._phase_step = {ts: 0 for ts in self.ts_ids}
 
         return {ts: self._get_observation(ts) for ts in self.ts_ids}
 
@@ -179,12 +207,19 @@ class TrafficEnv:
 
         # Apply actions (set phase for each controlled intersection)
         for ts, phase in actions.items():
+            prev_phase = traci.trafficlight.getPhase(ts) if self.use_phase_obs else None
             current_prog = traci.trafficlight.getProgram(ts)
             logic = traci.trafficlight.getAllProgramLogics(ts)
             if logic:
                 num_phases = len(logic[0].phases)
                 phase = int(phase) % num_phases
             traci.trafficlight.setPhase(ts, phase)
+            # Track how many steps we have been in this phase
+            if self.use_phase_obs:
+                if prev_phase != phase:
+                    self._phase_step[ts] = 0
+                else:
+                    self._phase_step[ts] = self._phase_step[ts] + PHASE_DURATION
 
         # Advance simulation by PHASE_DURATION steps
         for _ in range(PHASE_DURATION):
@@ -217,7 +252,9 @@ class TrafficEnv:
         """Dimensionality of the observation vector for *ts_id*."""
         lanes = self._lane_map.get(ts_id, [])
         # Per lane: vehicle count + occupancy = 2 features; plus 1 downstream flag
-        return len(lanes) * 2 + len(self._out_lane_map.get(ts_id, []))
+        base = len(lanes) * 2 + len(self._out_lane_map.get(ts_id, []))
+        # Optional phase features: current phase (normalised) + time in phase (normalised)
+        return base + (2 if self.use_phase_obs else 0)
 
     def action_space_size(self, ts_id: str) -> int:
         """Number of discrete actions (green-phase combinations) for *ts_id*."""
@@ -260,10 +297,14 @@ class TrafficEnv:
         """
         Build the spatio-temporal feature vector for *ts_id*.
 
-        Features:
+        Base features:
             [vehicle_count_lane_0, occupancy_lane_0, ...,
              vehicle_count_lane_N, occupancy_lane_N,
              downstream_spillback_flag_0, ..., downstream_spillback_flag_M]
+
+        Optional phase features (when ``use_phase_obs=True``):
+            [normalised_phase_index, normalised_time_in_phase]
+            Inspired by AndreaVidali/Deep-QLearning-Agent-for-Traffic-Signal-Control.
         """
         incoming = self._lane_map.get(ts_id, [])
         outgoing = self._out_lane_map.get(ts_id, [])
@@ -285,12 +326,74 @@ class TrafficEnv:
                 occ = 0.0
             features.append(float(occ > SPILLBACK_THRESHOLD))
 
+        # ── Phase-time features (optional) ──────────────────────────────
+        if self.use_phase_obs:
+            try:
+                logic = traci.trafficlight.getAllProgramLogics(ts_id)
+                current_phase = traci.trafficlight.getPhase(ts_id)
+                num_phases    = len(logic[0].phases) if logic else 4
+            except Exception:
+                current_phase, num_phases = 0, 4
+            phase_norm      = current_phase / max(num_phases - 1, 1)
+            phase_time      = self._phase_step[ts_id]
+            # Normalise phase-time against a generous maximum (10 × phase duration)
+            phase_time_norm = min(phase_time / (PHASE_DURATION * 10), 1.0)
+            features.append(phase_norm)
+            features.append(phase_time_norm)
+
         return np.array(features, dtype=np.float32)
 
     # ------------------------------------------------------------------
     def _compute_reward(self, ts_id: str) -> float:
         """
-        Composite fairness-aware reward:
+        Dispatch to the active reward mode.
+
+        Modes
+        -----
+        composite (default):
+            R = α·Throughput − β·Queue − γ·WaitTime − δ·SpillbackPenalty
+        pressure (sumo-rl style):
+            R = −|incoming_queue − outgoing_queue|
+        """
+        if self.reward_mode == REWARD_MODE_PRESSURE:
+            return self._compute_pressure_reward(ts_id)
+        return self._compute_composite_reward(ts_id)
+
+    # ------------------------------------------------------------------
+    def _compute_pressure_reward(self, ts_id: str) -> float:
+        """
+        Pressure reward inspired by LucasAlegre/sumo-rl.
+
+        R = −|sum(halted_incoming) − sum(halted_outgoing)|
+
+        Minimising pressure drives the agent to balance queues across
+        the intersection rather than greedily serving one direction.
+        """
+        incoming = self._lane_map.get(ts_id, [])
+        outgoing = self._out_lane_map.get(ts_id, [])
+
+        in_queue_total = 0.0
+        for lane in incoming:
+            try:
+                in_queue_total += traci.lane.getLastStepHaltingNumber(lane)
+            except Exception:
+                pass
+
+        out_queue = 0.0
+        for lane in outgoing:
+            try:
+                out_queue += traci.lane.getLastStepHaltingNumber(lane)
+            except Exception:
+                pass
+
+        pressure = abs(in_queue_total - out_queue)
+        # Normalise by the total number of lanes
+        norm = max(len(incoming) + len(outgoing), 1)
+        return float(-pressure / norm)
+
+    def _compute_composite_reward(self, ts_id: str) -> float:
+        """
+        Composite fairness-aware reward (original IUTMS formula):
             R = α·Throughput − β·Queue − γ·WaitTime − δ·SpillbackPenalty
         """
         incoming = self._lane_map.get(ts_id, [])
