@@ -368,11 +368,10 @@ class TestGenerateSumoConfig:
     def test_returns_absolute_path(self, tmp_path):
         net   = str(tmp_path / "n.xml")
         rou   = str(tmp_path / "r.xml")
-        cfg   = "relative/sim.sumocfg"          # relative path input
+        # Use a relative sub-path inside tmp_path to test relpath resolution
+        cfg   = str(tmp_path / "relative" / "sim.sumocfg")
         Path(net).write_text("<net/>")
         Path(rou).write_text("<routes/>")
-        abs_cfg = str((Path(cfg).resolve()))
-        Path(abs_cfg).parent.mkdir(parents=True, exist_ok=True)
 
         result = generate_sumo_config(net, rou, cfg)
         assert Path(result).is_absolute()
