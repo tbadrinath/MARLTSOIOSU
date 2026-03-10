@@ -22,8 +22,9 @@
 8. [Quick-Start](#quick-start)
 9. [Configuration Reference](#configuration-reference)
 10. [Dashboard](#dashboard)
-11. [Running Tests](#running-tests)
-12. [References](#references)
+11. [Download the Full Codebase ZIP](#download-the-full-codebase-zip)
+12. [Running Tests](#running-tests)
+13. [References](#references)
 
 ---
 
@@ -362,6 +363,32 @@ Additional panels:
 - **Training configuration** — interactive selector for DQN vs PPO and reward mode, with CLI command preview
 - **About** — algorithm architecture summary
 - **Export CSV** — download the current chart data
+
+---
+
+## Download the Full Codebase ZIP
+
+You can package the complete IUTMS project source into a single zip archive in
+either of these ways:
+
+### From the server/dashboard
+
+Start the telemetry server and use the **🗜 Download Project ZIP** button in the
+dashboard, or download it directly from:
+
+```text
+GET /api/export/codebase
+```
+
+### From the CLI
+
+```bash
+python -m simulation.codebase_exporter --output /absolute/path/to/MARLTSOIOSU-codebase.zip
+```
+
+The generated archive contains the project source and configuration files while
+excluding transient directories such as `.git`, `node_modules`, and Python
+cache files.
 
 ---
 

@@ -396,6 +396,36 @@ function exportCSV(steps, rewards, speeds, congestion, co2) {
   URL.revokeObjectURL(url);
 }
 
+function getDownloadFilename(response, fallbackName) {
+  const disposition = response.headers.get("content-disposition") || "";
+  const match = disposition.match(/filename="?([^"]+)"?/i);
+  return match?.[1] || fallbackName;
+}
+
+async function downloadProjectZip(serverUrl) {
+  const response = await fetch(`${serverUrl}/api/export/codebase`);
+  if (!response.ok) {
+    let message = `Server returned ${response.status}`;
+    try {
+      const data = await response.json();
+      message = data.detail || data.error || message;
+    } catch (_err) {
+      // Ignore JSON parse failures and use the HTTP status message instead.
+    }
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const filename = getDownloadFilename(response, "MARLTSOIOSU-codebase.zip");
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+  return filename;
+}
+
 // ---------------------------------------------------------------------------
 // OSM Map Panel
 // ---------------------------------------------------------------------------
@@ -659,6 +689,8 @@ export default function App() {
   const [latestSpeed,      setLatestSpeed]      = useState("—");
   const [latestCongestion, setLatestCongestion] = useState("—");
   const [latestCo2,        setLatestCo2]        = useState("—");
+  const [projectExporting, setProjectExporting] = useState(false);
+  const [projectExportMsg, setProjectExportMsg] = useState("");
 
   // -------------------------------------------------------------------------
   // Process one incoming metrics payload
@@ -708,6 +740,19 @@ export default function App() {
       setConnected(false);
     };
   }, [demoMode, handleMetric]);
+
+  const handleProjectExport = useCallback(async () => {
+    setProjectExporting(true);
+    setProjectExportMsg("Preparing full project zip …");
+    try {
+      const filename = await downloadProjectZip(SERVER_URL);
+      setProjectExportMsg(`Downloaded ${filename}`);
+    } catch (err) {
+      setProjectExportMsg(`Project zip export failed: ${err.message}`);
+    } finally {
+      setProjectExporting(false);
+    }
+  }, []);
 
   // -------------------------------------------------------------------------
   // Demo mode – generate simulated data with a timer
@@ -827,6 +872,14 @@ export default function App() {
       {/* ── Export & Info panels ─────────────────────────────────── */}
       <div style={styles.panelRow}>
         <button
+          style={{ ...styles.exportBtn, ...styles.projectZipBtn }}
+          onClick={handleProjectExport}
+          disabled={projectExporting}
+          title="Download the full IUTMS codebase as a zip archive"
+        >
+          {projectExporting ? "⏳ Preparing Project ZIP…" : "🗜 Download Project ZIP"}
+        </button>
+        <button
           style={styles.exportBtn}
           onClick={() => exportCSV(steps, rewards, speeds, congestion, co2)}
           disabled={steps.length === 0}
@@ -835,6 +888,11 @@ export default function App() {
           ⬇ Export CSV
         </button>
       </div>
+      {projectExportMsg && (
+        <div style={styles.exportStatus}>
+          {projectExportMsg}
+        </div>
+      )}
 
       <div style={styles.panelSection}>
         <OsmMapPanel serverUrl={SERVER_URL} />
@@ -994,6 +1052,17 @@ const styles = {
     fontSize: 12,
     fontWeight: 600,
     cursor: "pointer",
+  },
+  projectZipBtn: {
+    background: "rgba(0,229,255,0.08)",
+    border: "1px solid rgba(0,229,255,0.3)",
+    color: "#00e5ff",
+  },
+  exportStatus: {
+    padding: "0 24px 12px",
+    color: "#8fb3c9",
+    fontSize: 12,
+    textAlign: "right",
   },
   panelSection: {
     padding: "0 24px 16px",

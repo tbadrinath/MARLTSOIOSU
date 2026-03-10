@@ -40,6 +40,8 @@ const MAX_HISTORY = 500; // number of data points to keep in memory
 
 const app = express();
 const server = http.createServer(app);
+const REPO_ROOT = path.resolve(__dirname, "..", "..");
+const PYTHON_BIN = process.env.PYTHON_BIN || "python3";
 
 const io = new Server(server, {
   cors: {
@@ -172,6 +174,51 @@ app.get("/api/status", (_req, res) => {
     metricsBuffered: ringCount,
     connectedClients: io.engine.clientsCount,
     demoRunning: _demoTimer !== null,
+  });
+});
+
+function removeTempDir(dirPath) {
+  fs.rm(dirPath, { recursive: true, force: true }, () => {});
+}
+
+function buildCodebaseArchive(outputPath, callback) {
+  execFile(
+    PYTHON_BIN,
+    ["-m", "simulation.codebase_exporter", "--output", outputPath, "--repo-root", REPO_ROOT],
+    {
+      cwd: REPO_ROOT,
+      timeout: parseInt(process.env.CODEBASE_EXPORT_TIMEOUT_MS, 10) || 120_000,
+    },
+    callback
+  );
+}
+
+/**
+ * GET /api/export/codebase
+ * ------------------------
+ * Package the repository source into a downloadable zip archive.
+ */
+app.get("/api/export/codebase", (_req, res) => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "iutms-export-"));
+  const archiveName = `MARLTSOIOSU-codebase-${new Date().toISOString().replace(/[:.]/g, "-")}.zip`;
+  const archivePath = path.join(tempDir, archiveName);
+
+  buildCodebaseArchive(archivePath, (err, _stdout, stderr) => {
+    if (err) {
+      console.error("[Codebase export] Error:", stderr || err.message);
+      removeTempDir(tempDir);
+      return res.status(500).json({
+        error: "Codebase export failed",
+        detail: (stderr || err.message || "").slice(0, 1000),
+      });
+    }
+
+    return res.download(archivePath, archiveName, (downloadErr) => {
+      if (downloadErr) {
+        console.error("[Codebase export] Download error:", downloadErr.message);
+      }
+      removeTempDir(tempDir);
+    });
   });
 });
 
@@ -435,27 +482,20 @@ app.post("/api/osm/import", osmRateLimiter, (req, res) => {
     return res.status(429).json({ error: "Too many requests. Please wait before importing another map." });
   }
 
-  // Resolve path to the Python helper script relative to the repo root.
-  // server.js lives in  web/server/; repo root is two levels up.
-  const repoRoot = path.resolve(__dirname, "..", "..");
-  const scriptPath = path.join(repoRoot, "simulation", "osm_importer.py");
-
   // Output directory: <repo>/maps/osm/<sanitised-location>/
   const sanitised = location.trim().replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
-  const outputDir  = path.join(repoRoot, "maps", "osm", sanitised);
+  const outputDir  = path.join(REPO_ROOT, "maps", "osm", sanitised);
 
   const pythonCode = [
     "import sys, json",
-    `sys.path.insert(0, ${JSON.stringify(repoRoot)})`,
+    `sys.path.insert(0, ${JSON.stringify(REPO_ROOT)})`,
     "from simulation.osm_importer import import_map",
     `result = import_map(${JSON.stringify(location)}, ${JSON.stringify(outputDir)}, num_vehicles=${num_vehicles}, seed=${seed})`,
     "print(json.dumps(result))",
   ].join("; ");
 
-  const python = process.env.PYTHON_BIN || "python3";
-
   execFile(
-    python,
+    PYTHON_BIN,
     ["-c", pythonCode],
     { timeout: parseInt(process.env.OSM_IMPORT_TIMEOUT_MS, 10) || 180_000 },   // default 3-min; override with OSM_IMPORT_TIMEOUT_MS
     (err, stdout, stderr) => {
@@ -546,6 +586,7 @@ server.listen(PORT, () => {
   console.log(`  POST /api/metrics          – ingest step metrics`);
   console.log(`  GET  /api/metrics/history  – fetch metric history`);
   console.log(`  GET  /api/status           – health check`);
+  console.log(`  GET  /api/export/codebase  – download the full project as zip`);
   console.log(`  GET  /api/osm/search       – geocode a location (Nominatim)`);
   console.log(`  POST /api/osm/import       – download OSM map & convert to SUMO`);
   console.log(`  POST /api/demo/start       – start autonomous demo simulation`);
