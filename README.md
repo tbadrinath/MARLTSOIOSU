@@ -6,6 +6,7 @@
 [![Tests](https://img.shields.io/badge/tests-76%20passed-brightgreen)](#running-tests)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](#prerequisites)
 [![SUMO](https://img.shields.io/badge/SUMO-1.15.0-orange)](#prerequisites)
+[![Windows EXE](https://img.shields.io/badge/windows-exe-blue)](https://github.com/tbadrinath/MARLTSOIOSU/releases/latest/download/IUTMS-Setup.exe)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](#license)
 
 ---
@@ -19,12 +20,13 @@
 5. [Architecture](#architecture)
 6. [Folder Structure](#folder-structure)
 7. [Prerequisites](#prerequisites)
-8. [Quick-Start](#quick-start)
-9. [Configuration Reference](#configuration-reference)
-10. [Dashboard](#dashboard)
-11. [Download the Full Codebase ZIP](#download-the-full-codebase-zip)
-12. [Running Tests](#running-tests)
-13. [References](#references)
+8. [Windows EXE](#windows-exe)
+9. [Quick-Start](#quick-start)
+10. [Configuration Reference](#configuration-reference)
+11. [Dashboard](#dashboard)
+12. [Download the Full Codebase ZIP](#download-the-full-codebase-zip)
+13. [Running Tests](#running-tests)
+14. [References](#references)
 
 ---
 
@@ -271,6 +273,30 @@ After installing SUMO, set `SUMO_HOME`:
 export SUMO_HOME="/usr/share/sumo"          # Linux
 export SUMO_HOME="/opt/homebrew/opt/sumo"   # macOS (Homebrew)
 ```
+
+---
+
+## Windows EXE
+
+- **Latest installer:** [Download `IUTMS-Setup.exe`](https://github.com/tbadrinath/MARLTSOIOSU/releases/latest/download/IUTMS-Setup.exe)
+- **Portable bundle:** [Latest release assets](https://github.com/tbadrinath/MARLTSOIOSU/releases/latest)
+
+The Windows release workflow now builds a self-contained installer that bundles:
+
+- the Python-based SUMO launcher as `IUTMS-GUI.exe`
+- the Node/Express telemetry server as `IUTMS-Server.exe`
+- the pre-built React dashboard assets
+- the bundled maps in this repository
+
+This means Windows users do **not** need to download Python, Node.js, npm packages,
+or pip packages every time they want to run the app. The only external runtime
+prerequisite that still needs to be installed separately for live SUMO simulations
+is **SUMO** itself.
+
+To publish a fresh Windows installer, run the **Build Windows EXE** GitHub Actions
+workflow or push a version tag (for example `v1.0.0`). The workflow uploads the
+generated installer to the release page with the stable filename
+`IUTMS-Setup.exe`, which keeps the download link above unchanged.
 
 ---
 

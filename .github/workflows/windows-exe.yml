@@ -1,0 +1,91 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    env:
+      RELEASE_DIR: dist/windows/release
+      INSTALLER_DIR: dist/windows/installer
+      INSTALLER_NAME: IUTMS-Setup.exe
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install Python build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Install frontend dependencies and build dashboard
+        working-directory: web/client
+        run: |
+          npm install
+          npm run build
+
+      - name: Install server dependencies
+        working-directory: web/server
+        run: npm install
+
+      - name: Build Windows telemetry server executable
+        working-directory: web/server
+        run: npm run build:exe
+
+      - name: Build Windows SUMO launcher executable
+        run: |
+          pyinstaller --noconfirm --distpath "${{ env.RELEASE_DIR }}" --workpath build/pyinstaller packaging/windows/iutms_gui.spec
+
+      - name: Stage release files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "${env:RELEASE_DIR}" | Out-Null
+          Copy-Item README.md "${env:RELEASE_DIR}/README.md"
+          Compress-Archive -Path "${env:RELEASE_DIR}\*" -DestinationPath "dist/windows/IUTMS-Windows.zip" -Force
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "${env:INSTALLER_DIR}" | Out-Null
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            /DIUTMSReleaseDir="$pwd\${env:RELEASE_DIR}" `
+            /DIUTMSOutputDir="$pwd\${env:INSTALLER_DIR}" `
+            packaging/windows/IUTMS.iss
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: IUTMS-Windows
+          path: |
+            dist/windows/IUTMS-Windows.zip
+            dist/windows/installer/${{ env.INSTALLER_NAME }}
+
+      - name: Publish GitHub release assets
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/windows/IUTMS-Windows.zip
+            dist/windows/installer/${{ env.INSTALLER_NAME }}
