@@ -15,3 +15,14 @@ numpy>=1.24.0
 # HTTP client (for sending telemetry to the Node.js server and for the
 # OSM importer's Nominatim / Overpass API calls)
 requests>=2.31.0
+
+# ---------------------------------------------------------------------------
+# Desktop GUI application (see BUILD_EXE.md)
+# ---------------------------------------------------------------------------
+
+# Embedded telemetry server (replaces the Node.js server for the .exe build)
+flask>=3.0.0
+flask-socketio>=5.3.0
+
+# Embedded live charts in the tkinter GUI
+matplotlib>=3.7.0
