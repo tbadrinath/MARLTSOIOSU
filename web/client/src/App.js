@@ -641,7 +641,10 @@ export default function App() {
   const demoRef   = useRef({ step: 0, episode: 1 }); // mutable demo state (no render)
 
   const [connected, setConnected] = useState(false);
-  const [demoMode,  setDemoMode]  = useState(false);
+  // Auto-start demo mode when the URL contains ?demo=true (or &demo=true)
+  const [demoMode,  setDemoMode]  = useState(
+    () => new URLSearchParams(window.location.search).get("demo") === "true"
+  );
   const [episode,   setEpisode]   = useState(null);
 
   // Rolling chart series
