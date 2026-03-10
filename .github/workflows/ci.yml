@@ -1,0 +1,157 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+          pip install -r requirements.txt
+
+      - name: Lint with ruff
+        run: ruff check desktop/ build_exe.py
+
+  simulation:
+    name: SUMO Simulation Smoke Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install SUMO
+        run: |
+          sudo add-apt-repository -y ppa:sumo/stable
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq sumo sumo-tools
+
+      - name: Set SUMO_HOME
+        run: echo "SUMO_HOME=/usr/share/sumo" >> $GITHUB_ENV
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install traci sumolib
+
+      - name: Verify SUMO installation
+        run: |
+          sumo --version
+          python -c "import traci; print('TraCI OK')"
+
+      - name: Run DQN simulation (5 episodes, 100 steps)
+        run: |
+          python -m simulation.trainer \
+            --algo dqn \
+            --reward composite \
+            --episodes 5 \
+            --max-steps 100 \
+            --net-file maps/grid.net.xml \
+            --route-file maps/grid.rou.xml \
+            --checkpoint-dir /tmp/checkpoints_dqn \
+            --telemetry-url "" \
+            --seed 42
+
+      - name: Run PPO simulation (5 episodes, 100 steps)
+        run: |
+          python -m simulation.trainer \
+            --algo ppo \
+            --reward pressure \
+            --episodes 5 \
+            --max-steps 100 \
+            --net-file maps/grid.net.xml \
+            --route-file maps/grid.rou.xml \
+            --checkpoint-dir /tmp/checkpoints_ppo \
+            --telemetry-url "" \
+            --seed 42
+
+      - name: Verify checkpoints were saved
+        run: |
+          echo "=== DQN checkpoints ==="
+          ls -la /tmp/checkpoints_dqn/
+          echo "=== PPO checkpoints ==="
+          ls -la /tmp/checkpoints_ppo/
+
+  telemetry:
+    name: Telemetry Server Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Test telemetry server starts and responds
+        run: |
+          python -c "
+          from desktop.telemetry_server import create_app
+          app, sio = create_app()
+          client = app.test_client()
+
+          # Test status endpoint
+          resp = client.get('/api/status')
+          assert resp.status_code == 200, f'Status failed: {resp.status_code}'
+          data = resp.get_json()
+          assert data['status'] == 'ok'
+          print('Status endpoint: OK')
+
+          # Test metrics POST
+          import json
+          resp = client.post('/api/metrics', json={
+              'episode': 1, 'step': 10,
+              'total_reward': 1.5, 'avg_speed': 5.0,
+              'vehicles_in_network': 20, 'co2_emissions': 1000.0
+          })
+          assert resp.status_code == 200, f'Metrics POST failed: {resp.status_code}'
+          print('Metrics POST endpoint: OK')
+
+          # Test history endpoint
+          resp = client.get('/api/metrics/history')
+          assert resp.status_code == 200, f'History failed: {resp.status_code}'
+          history = resp.get_json()
+          assert len(history) >= 1
+          print(f'History endpoint: OK ({len(history)} entries)')
+
+          # Test demo start
+          resp = client.post('/api/demo/start')
+          assert resp.status_code == 200
+          print('Demo start: OK')
+
+          # Test demo status
+          resp = client.get('/api/demo/status')
+          assert resp.status_code == 200
+          print('Demo status: OK')
+
+          # Test demo stop
+          resp = client.post('/api/demo/stop')
+          assert resp.status_code == 200
+          print('Demo stop: OK')
+
+          print('All telemetry server tests passed!')
+          "
