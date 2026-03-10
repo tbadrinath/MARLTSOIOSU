@@ -25,6 +25,7 @@ const fs       = require("fs");
 
 const cors = require("cors");
 const express = require("express");
+const rateLimit = require("express-rate-limit");
 const { Server } = require("socket.io");
 
 // ---------------------------------------------------------------------------
@@ -42,6 +43,7 @@ const app = express();
 const server = http.createServer(app);
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const PYTHON_BIN = process.env.PYTHON_BIN || "python3";
+const REPO_NAME = path.basename(REPO_ROOT);
 
 const io = new Server(server, {
   cors: {
@@ -178,7 +180,16 @@ app.get("/api/status", (_req, res) => {
 });
 
 function removeTempDir(dirPath) {
-  fs.rm(dirPath, { recursive: true, force: true }, () => {});
+  fs.rm(dirPath, { recursive: true, force: true }, (err) => {
+    if (err) {
+      console.warn("[Codebase export] Cleanup warning for", dirPath, ":", err.message);
+    }
+  });
+}
+
+function parseEnvInt(value, fallback) {
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function buildCodebaseArchive(outputPath, callback) {
@@ -187,20 +198,30 @@ function buildCodebaseArchive(outputPath, callback) {
     ["-m", "simulation.codebase_exporter", "--output", outputPath, "--repo-root", REPO_ROOT],
     {
       cwd: REPO_ROOT,
-      timeout: parseInt(process.env.CODEBASE_EXPORT_TIMEOUT_MS, 10) || 120_000,
+      timeout: parseEnvInt(process.env.CODEBASE_EXPORT_TIMEOUT_MS, 120_000),
     },
     callback
   );
 }
+
+const codebaseExportRateLimiter = rateLimit({
+  windowMs: parseEnvInt(process.env.CODEBASE_EXPORT_RATE_WINDOW_MS, 60_000),
+  limit: parseEnvInt(process.env.CODEBASE_EXPORT_RATE_LIMIT, 5),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many export requests. Please wait before downloading another archive.",
+  },
+});
 
 /**
  * GET /api/export/codebase
  * ------------------------
  * Package the repository source into a downloadable zip archive.
  */
-app.get("/api/export/codebase", (_req, res) => {
+app.get("/api/export/codebase", codebaseExportRateLimiter, (_req, res) => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "iutms-export-"));
-  const archiveName = `MARLTSOIOSU-codebase-${new Date().toISOString().replace(/[:.]/g, "-")}.zip`;
+  const archiveName = `${REPO_NAME}-codebase-${new Date().toISOString().replace(/[:.]/g, "-")}.zip`;
   const archivePath = path.join(tempDir, archiveName);
 
   buildCodebaseArchive(archivePath, (err, _stdout, stderr) => {
@@ -208,8 +229,7 @@ app.get("/api/export/codebase", (_req, res) => {
       console.error("[Codebase export] Error:", stderr || err.message);
       removeTempDir(tempDir);
       return res.status(500).json({
-        error: "Codebase export failed",
-        detail: (stderr || err.message || "").slice(0, 1000),
+        error: "Codebase export failed. Please try again.",
       });
     }
 

@@ -383,7 +383,7 @@ GET /api/export/codebase
 ### From the CLI
 
 ```bash
-python -m simulation.codebase_exporter --output /absolute/path/to/MARLTSOIOSU-codebase.zip
+python -m simulation.codebase_exporter --output /absolute/path/to/project-codebase.zip
 ```
 
 The generated archive contains the project source and configuration files while

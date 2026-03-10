@@ -403,7 +403,12 @@ function getDownloadFilename(response, fallbackName) {
 }
 
 async function downloadProjectZip(serverUrl) {
-  const response = await fetch(`${serverUrl}/api/export/codebase`);
+  let response;
+  try {
+    response = await fetch(`${serverUrl}/api/export/codebase`);
+  } catch (_err) {
+    throw new Error("Network connection failed");
+  }
   if (!response.ok) {
     let message = `Server returned ${response.status}`;
     try {
@@ -417,11 +422,13 @@ async function downloadProjectZip(serverUrl) {
 
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
-  const filename = getDownloadFilename(response, "MARLTSOIOSU-codebase.zip");
+  const filename = getDownloadFilename(response, "project-codebase.zip");
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = filename;
+  document.body.appendChild(anchor);
   anchor.click();
+  anchor.remove();
   URL.revokeObjectURL(url);
   return filename;
 }
@@ -780,6 +787,12 @@ export default function App() {
     return () => clearInterval(timer);
   }, [demoMode, handleMetric]);
 
+  useEffect(() => {
+    if (!projectExportMsg) return undefined;
+    const timer = setTimeout(() => setProjectExportMsg(""), 5000);
+    return () => clearTimeout(timer);
+  }, [projectExportMsg]);
+
   // -------------------------------------------------------------------------
   // Memoised chart datasets – only rebuild when the underlying series change
   // -------------------------------------------------------------------------
@@ -875,7 +888,7 @@ export default function App() {
           style={{ ...styles.exportBtn, ...styles.projectZipBtn }}
           onClick={handleProjectExport}
           disabled={projectExporting}
-          title="Download the full IUTMS codebase as a zip archive"
+          title="Download the full project codebase as a zip archive"
         >
           {projectExporting ? "⏳ Preparing Project ZIP…" : "🗜 Download Project ZIP"}
         </button>
