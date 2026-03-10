@@ -30,6 +30,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "18"
+          cache: "npm"
+          cache-dependency-path: |
+            web/client/package-lock.json
+            web/server/package-lock.json
 
       - name: Install Python build dependencies
         run: |
@@ -39,12 +43,12 @@ jobs:
       - name: Install frontend dependencies and build dashboard
         working-directory: web/client
         run: |
-          npm install
+          npm ci
           npm run build
 
       - name: Install server dependencies
         working-directory: web/server
-        run: npm install
+        run: npm ci
 
       - name: Build Windows telemetry server executable
         working-directory: web/server
