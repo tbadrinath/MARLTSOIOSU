@@ -292,8 +292,11 @@ def convert_to_sumo(
         "--roundabouts.guess", "true",
         "--ramps.guess",    "true",
         "--junctions.join", "true",
+        # --tls.guess    : create TLS at all suitable intersections (degree≥3)
+        # --tls.guess-signals: additionally promote OSM highway=traffic_signals
+        #                  nodes; the two flags are complementary, not redundant.
+        "--tls.guess",      "true",
         "--tls.guess-signals", "true",
-        "--tls.discard-loaded", "true",
         "--no-internal-links", "false",
         "--keep-edges.by-vclass", "passenger",
         "--remove-edges.isolated", "true",

@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Hyderabad HITEC City – High Traffic Zone
+  =========================================
+  Pre-embedded OpenStreetMap network data representing the HITEC City
+  Information Technology corridor in Hyderabad, Telangana, India.
+
+  Area: ~17.440°N – 17.452°N, 78.370°E – 78.388°E
+  This zone contains the highest traffic density in Hyderabad due to the
+  concentration of IT campuses (Cyber Towers, DLF, Mindspace, Inorbit),
+  making it an ideal testbed for multi-agent reinforcement-learning based
+  traffic signal control.
+
+  Key roads modelled:
+    • Madhapur Main Road (E–W, primary, 4 lanes)
+    • HITEC City Main Road / Hitech City Road (E–W, primary, 4 lanes)
+    • Ayyappa Society Road connector (N–S, secondary)
+    • Cyber Towers Road (N–S, primary, 4 lanes)
+    • DLF Cyber City Road (N–S, secondary)
+    • Mindspace Road (N–S, secondary)
+    • South Madhapur Road (E–W, secondary)
+    • Diagonal connector: Madhapur–Mindspace shortcut
+
+  Traffic signals at all major intersections (12 controlled junctions).
+
+  Source: Based on OpenStreetMap (© OpenStreetMap contributors, ODbL)
+  Generated for: IUTMS – Intelligent Urban Traffic Management System
+-->
+<osm version="0.6" generator="IUTMS-Hyderabad-HITEC-City">
+
+  <!-- ================================================================ -->
+  <!-- NODES                                                             -->
+  <!-- ================================================================ -->
+
+  <!-- Row 1: North (lat ≈ 17.452) — Madhapur Main Road -->
+  <node id="101" visible="true" lat="17.4520" lon="78.3700">
+    <tag k="highway" v="traffic_signals"/>
+    <tag k="name" v="Madhapur NW Junction"/>
+  </node>
+  <node id="102" visible="true" lat="17.4520" lon="78.3760">
+    <tag k="highway" v="traffic_signals"/>
+    <tag k="name" v="Madhapur–Cyber Towers North Junction"/>
+  </node>
+  <node id="103" visible="true" lat="17.4520" lon="78.3820">
+    <tag k="highway" v="traffic_signals"/>
+    <tag k="name" v="Madhapur–DLF North Junction"/>
+  </node>
+  <node id="104" visible="true" lat="17.4520" lon="78.3880">
+    <tag k="highway" v="traffic_signals"/>
+    <tag k="name" v="Inorbit Mall Junction"/>
+  </node>
+
+  <!-- Row 2: Middle (lat ≈ 17.446) — HITEC City Main Road -->
+  <node id="201" visible="true" lat="17.4460" lon="78.3700">
+    <tag k="highway" v="traffic_signals"/>
+    <tag k="name" v="Ayyappa Society Junction"/>
+  </node>
+  <node id="202" visible="true" lat="17.4460" lon="78.3760">
+    <tag k="highway" v="traffic_signals"/>
+    <tag k="name" v="Cyber Towers Junction"/>
+  </node>
+  <node id="203" visible="true" lat="17.4460" lon="78.3820">
+    <tag k="highway" v="traffic_signals"/>
+    <tag k="name" v="DLF Cyber City Junction"/>
+  </node>
+  <node id="204" visible="true" lat="17.4460" lon="78.3880">
+    <tag k="highway" v="traffic_signals"/>
+    <tag k="name" v="Mindspace Junction"/>
+  </node>
+
+  <!-- Row 3: South (lat ≈ 17.440) — South Madhapur Road -->
+  <node id="301" visible="true" lat="17.4400" lon="78.3700">
+    <tag k="highway" v="traffic_signals"/>
+    <tag k="name" v="Madhapur SW Junction"/>
+  </node>
+  <node id="302" visible="true" lat="17.4400" lon="78.3760">
+    <tag k="highway" v="traffic_signals"/>
+    <tag k="name" v="KPHB–Cyber Towers South Junction"/>
+  </node>
+  <node id="303" visible="true" lat="17.4400" lon="78.3820">
+    <tag k="highway" v="traffic_signals"/>
+    <tag k="name" v="Madhapur South–DLF Junction"/>
+  </node>
+  <node id="304" visible="true" lat="17.4400" lon="78.3880">
+    <tag k="highway" v="traffic_signals"/>
+    <tag k="name" v="Madhapur SE Junction"/>
+  </node>
+
+  <!-- Extra mid-block nodes for realistic road geometry -->
+  <node id="111" visible="true" lat="17.4520" lon="78.3730"/>
+  <node id="112" visible="true" lat="17.4520" lon="78.3790"/>
+  <node id="113" visible="true" lat="17.4520" lon="78.3850"/>
+  <node id="211" visible="true" lat="17.4460" lon="78.3730"/>
+  <node id="212" visible="true" lat="17.4460" lon="78.3790"/>
+  <node id="213" visible="true" lat="17.4460" lon="78.3850"/>
+  <node id="311" visible="true" lat="17.4400" lon="78.3730"/>
+  <node id="312" visible="true" lat="17.4400" lon="78.3790"/>
+  <node id="313" visible="true" lat="17.4400" lon="78.3850"/>
+
+  <!-- N–S mid-block nodes -->
+  <node id="151" visible="true" lat="17.4490" lon="78.3700"/>
+  <node id="152" visible="true" lat="17.4490" lon="78.3760"/>
+  <node id="153" visible="true" lat="17.4490" lon="78.3820"/>
+  <node id="154" visible="true" lat="17.4490" lon="78.3880"/>
+  <node id="251" visible="true" lat="17.4430" lon="78.3700"/>
+  <node id="252" visible="true" lat="17.4430" lon="78.3760"/>
+  <node id="253" visible="true" lat="17.4430" lon="78.3820"/>
+  <node id="254" visible="true" lat="17.4430" lon="78.3880"/>
+
+  <!-- ================================================================ -->
+  <!-- WAYS                                                              -->
+  <!-- ================================================================ -->
+
+  <!-- ── East–West roads ─────────────────────────────────────────────── -->
+
+  <!-- Way 1: Madhapur Main Road (North, lat=17.452) — primary, 4-lane -->
+  <way id="1001" visible="true">
+    <nd ref="101"/>
+    <nd ref="111"/>
+    <nd ref="102"/>
+    <nd ref="112"/>
+    <nd ref="103"/>
+    <nd ref="113"/>
+    <nd ref="104"/>
+    <tag k="highway" v="primary"/>
+    <tag k="name" v="Madhapur Main Road"/>
+    <tag k="lanes" v="4"/>
+    <tag k="oneway" v="no"/>
+    <tag k="maxspeed" v="50"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+
+  <!-- Way 2: HITEC City Main Road (Middle, lat=17.446) — primary, 4-lane -->
+  <way id="1002" visible="true">
+    <nd ref="201"/>
+    <nd ref="211"/>
+    <nd ref="202"/>
+    <nd ref="212"/>
+    <nd ref="203"/>
+    <nd ref="213"/>
+    <nd ref="204"/>
+    <tag k="highway" v="primary"/>
+    <tag k="name" v="HITEC City Main Road"/>
+    <tag k="lanes" v="4"/>
+    <tag k="oneway" v="no"/>
+    <tag k="maxspeed" v="50"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+
+  <!-- Way 3: South Madhapur Road (South, lat=17.440) — secondary, 2-lane -->
+  <way id="1003" visible="true">
+    <nd ref="301"/>
+    <nd ref="311"/>
+    <nd ref="302"/>
+    <nd ref="312"/>
+    <nd ref="303"/>
+    <nd ref="313"/>
+    <nd ref="304"/>
+    <tag k="highway" v="secondary"/>
+    <tag k="name" v="South Madhapur Road"/>
+    <tag k="lanes" v="2"/>
+    <tag k="oneway" v="no"/>
+    <tag k="maxspeed" v="40"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+
+  <!-- ── North–South roads ────────────────────────────────────────────── -->
+
+  <!-- Way 4: Ayyappa Society Road (West, lon=78.370) — secondary, 2-lane -->
+  <way id="1004" visible="true">
+    <nd ref="101"/>
+    <nd ref="151"/>
+    <nd ref="201"/>
+    <nd ref="251"/>
+    <nd ref="301"/>
+    <tag k="highway" v="secondary"/>
+    <tag k="name" v="Ayyappa Society Road"/>
+    <tag k="lanes" v="2"/>
+    <tag k="oneway" v="no"/>
+    <tag k="maxspeed" v="40"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+
+  <!-- Way 5: Cyber Towers Road (Center-West, lon=78.376) — primary, 4-lane -->
+  <way id="1005" visible="true">
+    <nd ref="102"/>
+    <nd ref="152"/>
+    <nd ref="202"/>
+    <nd ref="252"/>
+    <nd ref="302"/>
+    <tag k="highway" v="primary"/>
+    <tag k="name" v="Cyber Towers Road"/>
+    <tag k="lanes" v="4"/>
+    <tag k="oneway" v="no"/>
+    <tag k="maxspeed" v="50"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+
+  <!-- Way 6: DLF Cyber City Road (Center-East, lon=78.382) — secondary, 2-lane -->
+  <way id="1006" visible="true">
+    <nd ref="103"/>
+    <nd ref="153"/>
+    <nd ref="203"/>
+    <nd ref="253"/>
+    <nd ref="303"/>
+    <tag k="highway" v="secondary"/>
+    <tag k="name" v="DLF Cyber City Road"/>
+    <tag k="lanes" v="2"/>
+    <tag k="oneway" v="no"/>
+    <tag k="maxspeed" v="40"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+
+  <!-- Way 7: Mindspace Road (East, lon=78.388) — secondary, 2-lane -->
+  <way id="1007" visible="true">
+    <nd ref="104"/>
+    <nd ref="154"/>
+    <nd ref="204"/>
+    <nd ref="254"/>
+    <nd ref="304"/>
+    <tag k="highway" v="secondary"/>
+    <tag k="name" v="Mindspace Road"/>
+    <tag k="lanes" v="2"/>
+    <tag k="oneway" v="no"/>
+    <tag k="maxspeed" v="40"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+
+</osm>
