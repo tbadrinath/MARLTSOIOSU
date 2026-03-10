@@ -381,12 +381,48 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gui",  action="store_true")
     parser.add_argument("--port", type=int, default=DEFAULT_CONFIG["sumo_port"])
     parser.add_argument("--seed", type=int, default=DEFAULT_CONFIG["seed"])
+    # OSM map import
+    parser.add_argument(
+        "--osm-location",
+        default=None,
+        metavar="PLACE",
+        help=(
+            "Import a real-world OSM map before training, e.g. "
+            "'Bangalore, India'.  Overrides --net-file and --route-file."
+        ),
+    )
+    parser.add_argument(
+        "--osm-output-dir",
+        default="maps/osm_import",
+        metavar="DIR",
+        help="Directory to write OSM-imported SUMO files (used with --osm-location).",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
     cfg = DEFAULT_CONFIG.copy()
+
+    # ------------------------------------------------------------------ #
+    # OSM map import (optional) – overrides --net-file / --route-file    #
+    # ------------------------------------------------------------------ #
+    if args.osm_location:
+        from simulation.osm_importer import import_map  # noqa: PLC0415
+        logger.info("Importing OSM map for '%s' …", args.osm_location)
+        osm_result = import_map(
+            location     = args.osm_location,
+            output_dir   = args.osm_output_dir,
+            num_vehicles = 400,
+            seed         = args.seed,
+        )
+        args.net_file   = osm_result["net_file"]
+        args.route_file = osm_result["route_file"]
+        logger.info(
+            "OSM import done – net=%s  routes=%s",
+            args.net_file, args.route_file,
+        )
+
     cfg.update(
         {
             "net_file":            args.net_file,

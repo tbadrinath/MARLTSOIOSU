@@ -489,10 +489,118 @@ def import_map(
     route_file = str(out / "map.rou.xml")
     generate_routes(net_file, route_file, num_vehicles=num_vehicles, seed=seed)
 
+    # Step 5 – write SUMO config file
+    config_file = str(out / "simulation.sumocfg")
+    generate_sumo_config(net_file, route_file, config_file)
+
     return {
         "display_name": display_name,
         "osm_file":     osm_file,
         "net_file":     net_file,
         "route_file":   route_file,
+        "config_file":  config_file,
         "bbox":         [min_lat, max_lat, min_lon, max_lon],
     }
+
+
+def generate_sumo_config(
+    net_file: str,
+    route_file: str,
+    config_file: str,
+    begin: int = 0,
+    end: int = 3600,
+    step_length: float = 1.0,
+    use_gui: bool = False,
+    quit_on_end: bool = True,
+    seed: int = 42,
+) -> str:
+    """
+    Write a SUMO simulation configuration (``.sumocfg``) file.
+
+    A ``.sumocfg`` is the standard way to bundle all SUMO input files and
+    simulation parameters into a single XML document that can be passed
+    directly to ``sumo`` or ``sumo-gui``:
+
+    .. code-block:: bash
+
+        sumo-gui -c simulation.sumocfg
+
+    Parameters
+    ----------
+    net_file : str
+        Path to the SUMO ``.net.xml`` network file (absolute or relative
+        to the config file's directory).
+    route_file : str
+        Path to the ``.rou.xml`` route file.
+    config_file : str
+        Destination path for the generated ``.sumocfg``.
+    begin : int
+        Simulation start time in seconds (default 0).
+    end : int
+        Simulation end time in seconds (default 3600).
+    step_length : float
+        Duration of each simulation step in seconds (default 1.0).
+    use_gui : bool
+        When ``True`` the ``gui-settings-file`` attribute is added so that
+        ``sumo-gui`` opens with a sensible default view.  Not required for
+        headless ``sumo``.
+    quit_on_end : bool
+        When ``True``, SUMO exits automatically when the simulation finishes
+        (equivalent to ``--quit-on-end true``).
+    seed : int
+        Random seed written to the ``<random_number>`` section (default 42).
+
+    Returns
+    -------
+    str
+        Resolved absolute path of the written ``.sumocfg`` file.
+    """
+    cfg_path = Path(config_file).resolve()
+    cfg_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Store paths relative to the config file so the config is portable
+    net_rel   = os.path.relpath(net_file,   start=str(cfg_path.parent))
+    route_rel = os.path.relpath(route_file, start=str(cfg_path.parent))
+
+    quit_flag = "true" if quit_on_end else "false"
+
+    content = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"'
+        ' xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">\n'
+        '\n'
+        '    <input>\n'
+        f'        <net-file value="{net_rel}"/>\n'
+        f'        <route-files value="{route_rel}"/>\n'
+        '    </input>\n'
+        '\n'
+        '    <time>\n'
+        f'        <begin value="{begin}"/>\n'
+        f'        <end value="{end}"/>\n'
+        f'        <step-length value="{step_length}"/>\n'
+        '    </time>\n'
+        '\n'
+        '    <processing>\n'
+        f'        <time-to-teleport value="-1"/>\n'
+        '        <waiting-time-memory value="1000"/>\n'
+        '    </processing>\n'
+        '\n'
+        '    <report>\n'
+        '        <no-step-log value="true"/>\n'
+        '        <no-warnings value="true"/>\n'
+        '    </report>\n'
+        '\n'
+        '    <random_number>\n'
+        f'        <seed value="{seed}"/>\n'
+        '    </random_number>\n'
+        '\n'
+        '    <output>\n'
+        '        <quit-on-end value="{quit}"/>\n'.format(quit=quit_flag) +
+        '    </output>\n'
+        '\n'
+        '</configuration>\n'
+    )
+
+    cfg_path.write_text(content, encoding="utf-8")
+    logger.info("SUMO config written to %s", cfg_path)
+    return str(cfg_path)

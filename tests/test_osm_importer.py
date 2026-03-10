@@ -14,6 +14,7 @@ import json
 import os
 import sys
 import types
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import MagicMock, patch, call
 
@@ -30,6 +31,7 @@ from simulation.osm_importer import (
     download_osm,
     convert_to_sumo,
     generate_routes,
+    generate_sumo_config,
     import_map,
     BBOX_MARGIN,
     MAX_BBOX_SIDE,
@@ -296,6 +298,7 @@ class TestImportMap:
         assert "display_name" in result
         assert "net_file" in result
         assert "route_file" in result
+        assert "config_file" in result
         assert "bbox" in result
         assert len(result["bbox"]) == 4
 
@@ -306,3 +309,79 @@ class TestImportMap:
         ):
             with pytest.raises(RuntimeError, match="No results found"):
                 import_map("xyzzy", str(tmp_path / "output"))
+
+
+# ---------------------------------------------------------------------------
+# generate_sumo_config
+# ---------------------------------------------------------------------------
+
+class TestGenerateSumoConfig:
+    def test_creates_file(self, tmp_path):
+        net   = str(tmp_path / "net.xml")
+        rou   = str(tmp_path / "routes.rou.xml")
+        cfg   = str(tmp_path / "sim.sumocfg")
+        Path(net).write_text("<net/>")
+        Path(rou).write_text("<routes/>")
+
+        result = generate_sumo_config(net, rou, cfg)
+
+        assert Path(result).exists()
+
+    def test_is_valid_xml(self, tmp_path):
+        net   = str(tmp_path / "net.xml")
+        rou   = str(tmp_path / "routes.rou.xml")
+        cfg   = str(tmp_path / "sim.sumocfg")
+        Path(net).write_text("<net/>")
+        Path(rou).write_text("<routes/>")
+
+        result = generate_sumo_config(net, rou, cfg)
+        tree = ET.parse(result)   # raises if malformed
+        root = tree.getroot()
+        assert root.tag == "configuration"
+
+    def test_contains_net_and_route(self, tmp_path):
+        net   = str(tmp_path / "my.net.xml")
+        rou   = str(tmp_path / "my.rou.xml")
+        cfg   = str(tmp_path / "sim.sumocfg")
+        Path(net).write_text("<net/>")
+        Path(rou).write_text("<routes/>")
+
+        generate_sumo_config(net, rou, cfg)
+        content = Path(cfg).read_text()
+
+        assert "net-file" in content
+        assert "route-files" in content
+
+    def test_begin_end_present(self, tmp_path):
+        net   = str(tmp_path / "n.xml")
+        rou   = str(tmp_path / "r.xml")
+        cfg   = str(tmp_path / "s.sumocfg")
+        Path(net).write_text("<net/>")
+        Path(rou).write_text("<routes/>")
+
+        generate_sumo_config(net, rou, cfg, begin=100, end=7200)
+        content = Path(cfg).read_text()
+
+        assert "100" in content
+        assert "7200" in content
+
+    def test_returns_absolute_path(self, tmp_path):
+        net   = str(tmp_path / "n.xml")
+        rou   = str(tmp_path / "r.xml")
+        # Use a relative sub-path inside tmp_path to test relpath resolution
+        cfg   = str(tmp_path / "relative" / "sim.sumocfg")
+        Path(net).write_text("<net/>")
+        Path(rou).write_text("<routes/>")
+
+        result = generate_sumo_config(net, rou, cfg)
+        assert Path(result).is_absolute()
+
+    def test_creates_parent_dirs(self, tmp_path):
+        net   = str(tmp_path / "n.xml")
+        rou   = str(tmp_path / "r.xml")
+        cfg   = str(tmp_path / "deep" / "nested" / "sim.sumocfg")
+        Path(net).write_text("<net/>")
+        Path(rou).write_text("<routes/>")
+
+        generate_sumo_config(net, rou, cfg)
+        assert Path(cfg).exists()

@@ -171,6 +171,116 @@ app.get("/api/status", (_req, res) => {
     uptime: process.uptime(),
     metricsBuffered: ringCount,
     connectedClients: io.engine.clientsCount,
+    demoRunning: _demoTimer !== null,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Server-side autonomous demo simulation
+// ---------------------------------------------------------------------------
+//
+// POST /api/demo/start  – begin pushing synthetic traffic metrics to all
+//                         connected Socket.io clients at a fixed interval.
+// POST /api/demo/stop   – stop the autonomous simulation.
+// GET  /api/demo/status – check whether the demo is currently running.
+//
+// The generated data mirrors the client-side generateDemoMetric() function so
+// that the dashboard displays realistic, smoothly-improving RL training curves
+// without needing SUMO or any Python environment.
+
+const DEMO_INTERVAL_MS = 150;  // ms between emitted data-points
+const DEMO_STEP_SIZE   = 10;   // simulation steps per tick
+const DEMO_MAX_STEPS   = 3600; // steps per episode
+const DEMO_TOTAL_EP    = 50;   // training episodes
+
+let _demoTimer   = null;
+let _demoStep    = 0;
+let _demoEpisode = 1;
+
+/**
+ * Generate one synthetic step-metrics payload that mimics realistic MARL
+ * training progress (reward improves, congestion drops, speed rises).
+ */
+function generateServerDemoMetric(step, episode) {
+  const epProgress    = Math.min((episode - 1) / DEMO_TOTAL_EP, 1);
+  const phaseProgress = step / DEMO_MAX_STEPS;
+
+  // Reward improves from roughly -12 → +8 across training episodes
+  const baseReward    = -12 + epProgress * 20;
+  const totalReward   = +(baseReward + Math.sin(phaseProgress * Math.PI * 4) * 2
+                          + (Math.random() - 0.5) * 3).toFixed(3);
+
+  // Average speed rises from ~6 m/s to ~14 m/s as agents learn
+  const avgSpeed      = +(6 + epProgress * 8
+                          + Math.sin(phaseProgress * Math.PI * 3) * 1.5
+                          + (Math.random() - 0.5) * 0.8).toFixed(2);
+
+  // Vehicles in network (congestion) drops from ~120 to ~40
+  const vehiclesInNetwork = Math.round(
+    120 - epProgress * 80
+    - Math.sin(phaseProgress * Math.PI * 2) * 10
+    + (Math.random() - 0.5) * 15
+  );
+
+  // CO₂ emissions fall as traffic flows more efficiently
+  const co2Emissions  = +(800 - epProgress * 400
+                           + Math.sin(phaseProgress * Math.PI * 2) * 60
+                           + (Math.random() - 0.5) * 40).toFixed(1);
+
+  return {
+    step,
+    episode,
+    total_reward:        totalReward,
+    avg_speed:           avgSpeed,
+    vehicles_in_network: vehiclesInNetwork,
+    co2_emissions:       co2Emissions,
+  };
+}
+
+/** Start the server-side demo timer (idempotent). */
+function startServerDemo() {
+  if (_demoTimer) return; // already running
+  _demoStep    = 0;
+  _demoEpisode = 1;
+  _demoTimer = setInterval(() => {
+    const metric = generateServerDemoMetric(_demoStep, _demoEpisode);
+    appendMetric(metric);
+    io.emit("step_metrics", { ...metric, serverTs: Date.now() });
+
+    _demoStep += DEMO_STEP_SIZE;
+    if (_demoStep >= DEMO_MAX_STEPS) {
+      _demoStep = 0;
+      // Cycle back to episode 1 after completing all training episodes so the
+      // demo loops indefinitely with the same improving-reward trajectory.
+      _demoEpisode = (_demoEpisode >= DEMO_TOTAL_EP) ? 1 : _demoEpisode + 1;
+    }
+  }, DEMO_INTERVAL_MS);
+  console.log("[Demo] Server-side autonomous demo started.");
+}
+
+/** Stop the server-side demo timer (idempotent). */
+function stopServerDemo() {
+  if (!_demoTimer) return;
+  clearInterval(_demoTimer);
+  _demoTimer = null;
+  console.log("[Demo] Server-side autonomous demo stopped.");
+}
+
+app.post("/api/demo/start", (_req, res) => {
+  startServerDemo();
+  res.json({ ok: true, message: "Demo simulation started." });
+});
+
+app.post("/api/demo/stop", (_req, res) => {
+  stopServerDemo();
+  res.json({ ok: true, message: "Demo simulation stopped." });
+});
+
+app.get("/api/demo/status", (_req, res) => {
+  res.json({
+    running:  _demoTimer !== null,
+    episode:  _demoEpisode,
+    step:     _demoStep,
   });
 });
 
@@ -395,6 +505,39 @@ io.on("connection", (socket) => {
 });
 
 // ---------------------------------------------------------------------------
+// Static file serving – serve the pre-built React app from /api/* fallthrough
+// ---------------------------------------------------------------------------
+//
+// When the React app has been built (`cd web/client && npm run build`), the
+// server can serve it directly so the entire stack runs on a single port.
+// This is optional – the dev server (`npm start` in web/client) still works.
+
+const CLIENT_BUILD    = path.join(__dirname, "..", "client", "build");
+// Pre-resolve once so the route handler never derives a path from user input.
+const CLIENT_INDEX    = path.join(CLIENT_BUILD, "index.html");
+
+if (fs.existsSync(CLIENT_BUILD)) {
+  app.use(express.static(CLIENT_BUILD));
+
+  // Read index.html once at startup so the catch-all route serves it from
+  // memory rather than performing a file system access per request.
+  // The path is a compile-time constant derived from __dirname – never from
+  // request data – so there is no path-traversal risk.
+  const indexHtml = fs.existsSync(CLIENT_INDEX)
+    ? fs.readFileSync(CLIENT_INDEX)
+    : null;
+
+  if (indexHtml) {
+    // Any non-API route falls through to index.html (client-side routing).
+    app.get(/^(?!\/api\/).*/, (_req, res) => {
+      res.type("html").send(indexHtml);
+    });
+  }
+
+  console.log(`[Static] Serving React build from ${CLIENT_BUILD}`);
+}
+
+// ---------------------------------------------------------------------------
 // Start server
 // ---------------------------------------------------------------------------
 
@@ -405,7 +548,18 @@ server.listen(PORT, () => {
   console.log(`  GET  /api/status           – health check`);
   console.log(`  GET  /api/osm/search       – geocode a location (Nominatim)`);
   console.log(`  POST /api/osm/import       – download OSM map & convert to SUMO`);
+  console.log(`  POST /api/demo/start       – start autonomous demo simulation`);
+  console.log(`  POST /api/demo/stop        – stop autonomous demo simulation`);
+  console.log(`  GET  /api/demo/status      – demo simulation status`);
   console.log(`  Socket.io on ws://localhost:${PORT}`);
+
+  // Auto-start the server-side demo when DEMO=true is set in the environment.
+  // This lets CI/CD or the README quick-start command spin up a fully live
+  // demonstration without any additional steps.
+  if (process.env.DEMO === "true") {
+    startServerDemo();
+    console.log(`[Demo] Auto-started (DEMO=true). Open http://localhost:${PORT}/?demo=true`);
+  }
 });
 
-module.exports = { app, server, io };
+module.exports = { app, server, io, startServerDemo, stopServerDemo };
