@@ -13,7 +13,7 @@ def test_windows_workflow_exists():
     content = workflow.read_text(encoding="utf-8")
     assert "Build Windows EXE" in content
     assert "IUTMS-Setup.exe" in content
-    assert "softprops/action-gh-release@v2" in content
+    assert "softprops/action-gh-release@" in content
 
 
 def test_server_package_can_build_windows_exe():

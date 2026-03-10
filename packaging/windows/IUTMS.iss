@@ -23,6 +23,6 @@ WizardStyle=modern
 Source: "{#IUTMSReleaseDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\IUTMS Dashboard Server"; Filename: "{app}\IUTMS-Server.exe"
-Name: "{group}\IUTMS SUMO Launcher"; Filename: "{app}\IUTMS-GUI.exe"
+Name: "{group}\IUTMS Telemetry Server"; Filename: "{app}\IUTMS-Server.exe"
+Name: "{group}\IUTMS Simulation Launcher"; Filename: "{app}\IUTMS-GUI.exe"
 Name: "{group}\Uninstall IUTMS"; Filename: "{uninstallexe}"
