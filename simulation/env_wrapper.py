@@ -30,8 +30,6 @@ pressure:
 
 from __future__ import annotations
 
-import os
-import sys
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -208,7 +206,7 @@ class TrafficEnv:
         # Apply actions (set phase for each controlled intersection)
         for ts, phase in actions.items():
             prev_phase = traci.trafficlight.getPhase(ts) if self.use_phase_obs else None
-            current_prog = traci.trafficlight.getProgram(ts)
+            _ = traci.trafficlight.getProgram(ts)
             logic = traci.trafficlight.getAllProgramLogics(ts)
             if logic:
                 num_phases = len(logic[0].phases)
