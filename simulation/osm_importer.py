@@ -39,7 +39,6 @@ import os
 import shutil
 import subprocess
 import sys
-import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -409,7 +408,7 @@ def generate_routes(
 
 def _write_synthetic_routes(route_file: str, num_vehicles: int) -> None:
     """Write a minimal `.rou.xml` with uniform departure intervals."""
-    end_time = num_vehicles  # one vehicle per second
+    _ = num_vehicles  # one vehicle per second
     header = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"'
